@@ -1,0 +1,127 @@
+═══════════════════════════════════════════════════════════════════════
+MESHLINK — COMPLETE DEPLOYMENT PROMPT (COPY & PASTE)
+═══════════════════════════════════════════════════════════════════════
+
+I need you to complete the final deployment of the MeshLink app. The full source code is at:
+/home/mhzaly/Documents/Default Project
+
+CURRENT STATUS:
+- GitHub repo: https://github.com/Iamhasaanzahid/meshlink (already pushed)
+- Release v1.0.0: https://github.com/Iamhasaanzahid/meshlink/releases/tag/v1.0.0
+- All source code: ✅ complete
+- All tests: ✅ 43/43 passing
+- Missing: Cloudflare deploy, APK build, F-Droid submission
+
+PREREQUISITES (you must have these):
+1. Node.js 18+ (https://nodejs.org/)
+2. npm (comes with Node.js)
+3. GitHub CLI gh (https://cli.github.com/) - run: gh auth login
+4. Android SDK (https://developer.android.com/studio#command-tools)
+5. Gradle 8.5+ (auto-downloaded by wrapper)
+6. Cloudflare API Token (create at https://dash.cloudflare.com/profile/api-tokens)
+   - Token needs "Cloudflare Pages:Edit" permission
+7. Signing Keystore for APK (create with: keytool -genkey -v -keystore release.keystore -alias meshlink -keyalg RSA -keysize 2048 -validity 10000)
+   - Store password in environment variable, NOT in prompt
+
+STEP 1: Cloudflare Deploy
+```bash
+cd /home/mhzaly/Documents/Default\ Project/cloudflare/meshlink
+
+# Set environment variables (NEVER paste tokens in prompts!)
+export CLOUDFLARE_API_TOKEN="your_token_here"
+export CLOUDFLARE_ACCOUNT_ID="your_account_id_here"
+
+# Deploy to Cloudflare Pages (CORRECT command)
+npx wrangler pages deploy . --project-name=meshlink
+
+# The output URL will be printed. Example: https://meshlink-abc123.pages.dev
+# Note: The URL may NOT be exactly "meshlink.pages.dev" if that subdomain is taken.
+# USE THE URL PRINTED BY WRANGLER.
+```
+
+STEP 2: Build & Upload APK
+```bash
+cd /home/mhzaly/Documents/Default\ Project/meshlink_android
+
+# Build the release APK with signing (installable directly on phones)
+# The debug keystore is created automatically by Android Gradle Plugin.
+# For production, create a release keystore first:
+#   keytool -genkey -v -keystore release.keystore -alias meshlink -keyalg RSA -keysize 2048 -validity 10000
+# Then add to app/build.gradle:
+#   signingConfigs {
+#       release {
+#           storeFile file("release.keystore")
+#           storePassword System.getenv("KEYSTORE_PASSWORD") ?: "your_password"
+#           keyAlias System.getenv("KEY_ALIAS") ?: "meshlink"
+#           keyPassword System.getenv("KEY_PASSWORD") ?: "your_key_password"
+#       }
+#   }
+#   buildTypes {
+#       release {
+#           signingConfig signingConfigs.release
+#           minifyEnabled false
+#       }
+#   }
+
+# Build APK (installable directly on phones, not AAB)
+./gradlew assembleRelease \
+  -PmeshlinkApiUrl="https://meshlink-api.onrender.com" \
+  --no-daemon
+
+# APK location:
+# app/build/outputs/apk/release/app-release.apk
+
+# Upload to GitHub Release
+gh release upload v1.0.0 \
+  app/build/outputs/apk/release/app-release.apk \
+  --repo Iamhasaanzahid/meshlink
+```
+
+STEP 3: F-Droid Submission
+1. Create GitLab account: https://gitlab.com/
+2. Fork fdroiddata: https://gitlab.com/fdroid/fdroiddata
+3. Clone your fork:
+   ```bash
+   git clone https://gitlab.com/your_username/fdroiddata.git
+   cd fdroiddata
+   ```
+4. Copy metadata file to CORRECT location (in YOUR fork, NOT the app repo):
+   ```bash
+   mkdir -p metadata
+   cp /home/mhzaly/Documents/Default\ Project/meshlink_android/metadata/com.meshlink.app.yml \
+      metadata/com.meshlink.app.yml
+   ```
+5. Test build locally (RECOMMENDED):
+   ```bash
+   pip3 install fdroidserver
+   fdroid lint metadata/com.meshlink.app.yml
+   fdroid build com.meshlink.app
+   ```
+6. Commit and push to your fork:
+   ```bash
+   git add metadata/com.meshlink.app.yml
+   git commit -m "Add MeshLink"
+   git push origin master
+   ```
+7. Open Merge Request from your fork to:
+   - https://gitlab.com/fdroid/fdroiddata
+   - Title: "Add MeshLink"
+   - Wait for volunteer review (1-2 weeks)
+
+EXPECTED OUTCOMES:
+- Cloudflare: Live website at [wrangler-printed URL] (may not be exactly meshlink.pages.dev)
+- APK: Downloadable from GitHub release
+- F-Droid: App listed at https://f-droid.org/packages/com.meshlink.app/ (after review)
+
+IMPORTANT NOTES:
+- Cloudflare URL may not be exactly "meshlink.pages.dev" - use what wrangler prints
+- Render free tier services sleep after 15min (cold start 30-60s)
+- Radio mesh testing requires 2 physical devices (cannot test from terminal)
+- NEVER paste tokens/passwords in prompts - use environment variables
+- AAB is for Google Play only; use APK for GitHub Releases
+- F-Droid metadata must be in YOUR fork of fdroiddata, not the app repo
+- Run fdroid lint and fdroid build before submitting to F-Droid
+- Signing config must be set up in Gradle BEFORE building release APK
+
+START NOW:
+Please execute these 3 steps and report back the results.
