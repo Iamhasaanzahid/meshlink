@@ -20,7 +20,7 @@ PREREQUISITES (you must have these):
 5. Gradle 8.5+ (auto-downloaded by wrapper)
 6. Cloudflare API Token (create at https://dash.cloudflare.com/profile/api-tokens)
    - Token needs "Cloudflare Pages:Edit" permission
-7. Signing Keystore for APK (create with: keytool -genkey -v -keystore release.keystore -alias meshlink -keyalg RSA -keysize 2048 -validity 10000)
+7. Signing Keystore (create with: keytool -genkey -v -keystore release.keystore -alias meshlink -keyalg RSA -keysize 2048 -validity 10000)
    - Store password in environment variable, NOT in prompt
 
 STEP 1: Cloudflare Deploy
@@ -43,25 +43,13 @@ STEP 2: Build & Upload APK
 ```bash
 cd /home/mhzaly/Documents/Default\ Project/meshlink_android
 
-# Build the release APK with signing (installable directly on phones)
-# The debug keystore is created automatically by Android Gradle Plugin.
-# For production, create a release keystore first:
-#   keytool -genkey -v -keystore release.keystore -alias meshlink -keyalg RSA -keysize 2048 -validity 10000
-# Then add to app/build.gradle:
-#   signingConfigs {
-#       release {
-#           storeFile file("release.keystore")
-#           storePassword System.getenv("KEYSTORE_PASSWORD") ?: "your_password"
-#           keyAlias System.getenv("KEY_ALIAS") ?: "meshlink"
-#           keyPassword System.getenv("KEY_PASSWORD") ?: "your_key_password"
-#       }
-#   }
-#   buildTypes {
-#       release {
-#           signingConfig signingConfigs.release
-#           minifyEnabled false
-#       }
-#   }
+# Build the release APK (installable directly on phones)
+# signingConfig in build.gradle is conditional on KEYSTORE_FILE env var.
+# Without it, AGP builds an unsigned release APK.
+# To build signed: export KEYSTORE_FILE=/path/to/release.keystore
+#                 export KEYSTORE_PASSWORD=your_password
+#                 export KEY_ALIAS=meshlink
+#                 export KEY_PASSWORD=your_key_password
 
 # Build APK (installable directly on phones, not AAB)
 ./gradlew assembleRelease \
@@ -69,7 +57,7 @@ cd /home/mhzaly/Documents/Default\ Project/meshlink_android
   --no-daemon
 
 # APK location:
-# app/build/outputs/apk/release/app-release.apk
+# app/build/outputs/apk/release/app-release.apk (signed) or app-release-unsigned.apk (unsigned)
 
 # Upload to GitHub Release
 gh release upload v1.0.0 \
@@ -122,6 +110,8 @@ IMPORTANT NOTES:
 - F-Droid metadata must be in YOUR fork of fdroiddata, not the app repo
 - Run fdroid lint and fdroid build before submitting to F-Droid
 - Signing config must be set up in Gradle BEFORE building release APK
+- signingConfigs block is declared BEFORE buildTypes (Groovy evaluation order)
+- signingConfig is only attached when KEYSTORE_FILE env var exists
 
 START NOW:
 Please execute these 3 steps and report back the results.
