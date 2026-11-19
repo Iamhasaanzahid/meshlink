@@ -13,9 +13,33 @@ export class PairSessions extends DurableObject {
   constructor(state, env) {
     super(state, env);
     this.state = state;
+    this.sockets = new Set();
+  }
+
+  /** Fan out realtime events to every other connected browser/device. */
+  handleSocket() {
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    server.accept();
+    this.sockets.add(server);
+    server.addEventListener('message', (event) => {
+      for (const socket of this.sockets) {
+        if (socket !== server && socket.readyState === WebSocket.OPEN) {
+          try { socket.send(event.data); } catch { /* dead socket */ }
+        }
+      }
+    });
+    const close = () => this.sockets.delete(server);
+    server.addEventListener('close', close);
+    server.addEventListener('error', close);
+    return new Response(null, { status: 101, webSocket: client });
   }
 
   async fetch(request) {
+    if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+      return this.handleSocket();
+    }
     const url = new URL(request.url);
     const path = url.pathname;
     const sessions = (await this.state.storage.get('sessions')) || {};
@@ -61,7 +85,11 @@ export class PairSessions extends DurableObject {
 }
 
 export default {
-  async fetch() {
-    return new Response('MeshLink pairing DO', { status: 200 });
+  async fetch(request, env) {
+    if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+      const id = env.PAIR_SESSIONS.idFromName('meshlink-relay');
+      return env.PAIR_SESSIONS.get(id).fetch(request);
+    }
+    return new Response('MeshLink pairing + relay Worker', { status: 200 });
   },
 };

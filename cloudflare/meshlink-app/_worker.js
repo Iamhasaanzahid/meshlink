@@ -3,7 +3,7 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith('/api/pair/')) {
+    if (url.pathname.startsWith('/api/pair/') || url.pathname === '/ws') {
       const id = env.PAIR_SESSIONS.idFromName('meshlink-web');
       return env.PAIR_SESSIONS.get(id).fetch(request);
     }

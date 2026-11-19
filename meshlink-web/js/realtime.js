@@ -23,7 +23,12 @@ function connect() {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   if (!location.protocol.startsWith('http')) return;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${location.hostname}:8765`;
+  // Local demo still uses the Flask relay on 8765. Everywhere else (including
+  // Cloudflare Pages) the same-origin /ws route is upgraded by a Durable Object.
+  const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const url = local
+    ? `${proto}://${location.hostname}:8765`
+    : 'wss://meshlink-pair.mhzaly.workers.dev/ws';
   try {
     socket = new WebSocket(url);
   } catch {
