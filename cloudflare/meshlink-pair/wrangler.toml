@@ -2,6 +2,11 @@ name = "meshlink-pair"
 main = "worker.js"
 compatibility_date = "2026-11-19"
 
+# Email verification secrets (set with `wrangler secret put ...`):
+#   RESEND_API_KEY  - when absent, verification runs in demo mode (code 123456)
+#   OTP_SECRET      - HMAC key; a constant dev fallback is used when absent
+#   VERIFY_FROM     - optional sender, default onboarding@resend.dev
+
 [[durable_objects.bindings]]
 name = "PAIR_SESSIONS"
 class_name = "PairSessions"

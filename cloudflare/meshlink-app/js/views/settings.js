@@ -12,6 +12,7 @@ export function renderSettingsPage() {
   const outbox = outboxOf(s.messages);
   const prefs = s.settings;
   const sec = securitySummary();
+  const emailVerified = !!(s.auth.verified && s.auth.verifiedEmail);
   return `<div class="page"><div class="page-inner">
     <div class="page-head"><div><div class="eyebrow">Your MeshLink</div><h1>Settings</h1><p>Profile, appearance, network mode, privacy and data.</p></div><div class="head-actions"><button class="btn" data-action="logout">${icon('logout')} Log out</button></div></div>
     <div class="settings-grid"><div class="settings-col">
@@ -19,9 +20,10 @@ export function renderSettingsPage() {
         <div class="profile-editor"><div class="pe-top">${avatar(u,{size:'lg',online:true})}<div class="grow"><div style="font-weight:750">${esc(u.name)}</div><div class="muted small">${esc(formatMeshId(u.meshId || s.auth.meshId))}</div></div><button class="btn sm" data-action="edit-profile">${icon('edit','sm')} Edit</button></div>
         <div class="auth-note">${icon('info')} ${esc(u.about||'Add an about line')}</div></div>
       </div>
-      <div class="card set-card"><h2>Security & privacy</h2><p class="sub">Your vault is encrypted locally. No phone number, email or cloud account is required.</p>
+      <div class="card set-card"><h2>Security & privacy</h2><p class="sub">Your vault is encrypted locally. No phone number or cloud account is required — email is only used for security verification.</p>
         <div class="security-banner"><div class="sb-ic">${icon('shield','lg')}</div><div class="grow"><div style="font-weight:750;font-size:13px">${sec.pin?'PIN lock enabled':'Device key protection active'}</div><div class="muted small">${esc(sec.cipher)} · ${esc(sec.kdf)} · offline-first</div></div></div>
         <div class="set-row"><div class="si-ic">${icon('key')}</div><div class="si-body"><div class="si-title">MeshLink ID</div><div class="si-sub">Auto-generated 10-digit identity · never your real number</div></div><button class="btn sm" data-action="copy-mesh-id">${icon('copy','sm')} Copy</button></div>
+        <div class="set-row"><div class="si-ic">${icon('shield')}</div><div class="si-body"><div class="si-title">Email verification ${emailVerified ? `<span class="verified-badge">${icon('checkCheck','sm')} Verified</span>` : ''}</div><div class="si-sub">${emailVerified ? `${esc(s.auth.verifiedEmail)} · security only, never used to log in` : 'Not verified — add an email to secure this ID'}</div></div>${emailVerified ? '' : `<button class="btn sm" data-action="verify-email">Verify</button>`}</div>
         <div class="set-row"><div class="si-ic">${icon('lock')}</div><div class="si-body"><div class="si-title">App PIN</div><div class="si-sub">${sec.pin?'Unlock required in a new tab or after 5 minutes':'Add a 6-digit PIN for a second layer'}</div></div>${sec.pin?`<button class="btn sm" data-action="remove-pin">Remove</button>`:`<button class="btn sm" data-action="set-pin">Set PIN</button>`}</div>
         <div class="set-row"><div class="si-ic">${icon('eye')}</div><div class="si-body"><div class="si-title">App lock</div><div class="si-sub">Instantly hide chats and require your PIN.</div></div><button class="btn sm" data-action="lock-app">${icon('lock','sm')} Lock now</button></div>
       </div>
@@ -88,6 +90,7 @@ function openPinSetup() {
 export function handleSettingsAction(action, el) {
   if (action==='set-theme') { act.setTheme(el.dataset.theme); return true; }
   if (action==='copy-mesh-id') { const id=String(getState().user?.meshId||getState().auth.meshId||''); navigator.clipboard?.writeText(id).then(()=>toast('MeshLink ID copied','success')).catch(()=>toast(id,'success')); return true; }
+  if (action==='verify-email') { act.setStage('email'); return true; }
   if (action==='set-pin') { openPinSetup(); return true; }
   if (action==='remove-pin') { confirmDialog({title:'Remove app PIN?',message:'The vault will be protected by the device key only.',confirmLabel:'Remove PIN'}).then(async(ok)=>{ if(ok){ await act.disablePin(); toast('App PIN removed','success'); } }); return true; }
   if (action==='set-wallpaper') { act.setWallpaper(el.dataset.id); return true; }

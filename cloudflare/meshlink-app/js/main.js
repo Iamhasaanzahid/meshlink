@@ -47,6 +47,8 @@ function render() {
     const pos = document.activeElement?.selectionStart;
     app.innerHTML = authHTML(s);
     restoreFocus(active, pos);
+    if (s.auth.stage === 'email' && active !== 'verify-email') document.getElementById('verify-email')?.focus();
+    if (s.auth.stage === 'otp' && active !== 'otp-code') document.getElementById('otp-code')?.focus();
     if (s.auth.stage === 'qr' && !qrStop) startQrFlow();
     return;
   }
@@ -131,28 +133,39 @@ function authHTML(s) {
     </section>
     <section class="auth-panel"><div class="auth-card">
       <div class="auth-mobile-brand"><span class="auth-logo">${icon('message')}</span> MeshLink</div>
-      ${stage === 'login' ? loginHTML() : stage === 'otp' ? otpHTML(s) : stage === 'qr' ? qrHTML() : profileHTML(s)}
+      ${stage === 'login' ? loginHTML() : stage === 'email' ? emailHTML(s) : stage === 'otp' ? otpHTML(s) : stage === 'qr' ? qrHTML() : profileHTML(s)}
     </div></section>
   </div>`;
 }
 
 function loginHTML() {
   const id = formatMeshId(getState().auth.meshId);
-  return `<div class="auth-card-head"><h2>Welcome to MeshLink</h2><p>MeshLink gives you a private 10-digit identity. Your phone number and email are never requested.</p></div>
+  return `<div class="auth-card-head"><h2>Welcome to MeshLink</h2><p>MeshLink gives you a private 10-digit identity. Your phone number is never requested — email is only used to verify your ID, never to log in.</p></div>
   <div class="mesh-id-card"><div class="mid-top">${icon('shield')} Your MeshLink ID</div><div class="mid-number">${esc(id)}</div><div class="mid-sub">Generated securely on this device · share only with people you want to chat with</div></div>
   <form class="auth-form" data-form="login">
     <button class="btn primary lg block" type="submit">Continue ${icon('chevronRight','sm')}</button>
     <div class="auth-or">or</div>
     <button class="btn primary lg block" type="button" data-action="qr-login">${icon('qr')} Scan QR with MeshLink phone</button>
     <button class="btn lg block" type="button" data-action="demo-login">${icon('sparkles')} Explore demo account</button>
-    <div class="auth-note">${icon('info')} QR login rotates every 30 seconds. Demo OTP is <b style="color:var(--accent-3)">123456</b>.</div>
+    <div class="auth-note">${icon('info')} QR login rotates every 30 seconds. Without email setup, the demo verification code is <b style="color:var(--accent-3)">123456</b>.</div>
+  </form>`;
+}
+
+function emailHTML(s) {
+  return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
+  <div class="auth-card-head"><h2>Verify your identity</h2><p>Your MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> stays your identity. We only use email to send a one-time security code.</p></div>
+  <form class="auth-form" data-form="verify-email">
+    <div class="field"><label>Email address</label><input class="input" id="verify-email" type="email" placeholder="you@example.com" autocomplete="email" value="${esc(s.auth.verifyEmail || '')}" required></div>
+    <button class="btn primary lg block" type="submit" id="send-code">Send code ${icon('chevronRight','sm')}</button>
+    <div class="auth-note">${icon('shield')} Email is never used for login, shown to contacts, or stored as a phone number. The code expires in 5 minutes.</div>
   </form>`;
 }
 
 function otpHTML(s) {
+  const email = s.auth.verifyEmail || s.auth.verifiedEmail || '';
   return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
-  <div class="auth-card-head"><h2>Verify your ID</h2><p>Enter the 6-digit demo code for MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId || s.auth.pendingPhone || ''))}</b>.</p></div>
-  <form class="auth-form" data-form="otp"><input class="input otp-input" id="otp-code" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code"><button class="btn primary lg block" type="submit">Verify ${icon('check','sm')}</button><button class="btn ghost block" type="button" data-action="resend-otp">Resend code</button><div class="auth-demo">Demo code: <b>123456</b></div></form>`;
+  <div class="auth-card-head"><h2>Check your email</h2><p>Enter the 6-digit code sent to <b style="color:var(--accent-3)">${esc(email)}</b> to secure MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b>.</p></div>
+  <form class="auth-form" data-form="otp"><input class="input otp-input" id="otp-code" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code"><button class="btn primary lg block" type="submit">Verify ${icon('check','sm')}</button><button class="btn ghost block" type="button" data-action="resend-otp">Resend code</button>${s.auth.verifyDemo ? '<div class="auth-demo">Demo code: <b>123456</b> · no email was sent</div>' : '<div class="auth-note">' + icon('info') + ' The code expires in 5 minutes.</div>'}</form>`;
 }
 
 function qrHTML() {
@@ -173,7 +186,7 @@ function profileHTML(s) {
     <div class="stack" style="align-items:center;gap:8px"><div id="auth-avatar">${avatar({ name: 'New profile', avatar: profilePhoto }, { size: 'xl' })}</div><button class="btn sm" type="button" data-action="pick-avatar">${icon('upload','sm')} Add photo</button><input type="file" id="auth-avatar-file" accept="image/*" hidden></div>
     <div class="field"><label>Your name</label><input class="input" id="profile-name" placeholder="e.g. Ali Hassan" value="${esc(s.user?.name || '')}" required></div>
     <div class="field"><label>About</label><input class="input" id="profile-about" placeholder="Hey there! I am using MeshLink." value="${esc(s.user?.about || '')}"></div>
-    <div class="auth-note" style="margin-bottom:14px">${icon('shield')} Your MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> is assigned automatically. No phone number needed.</div>
+    <div class="auth-note" style="margin-bottom:14px">${icon('shield')} Your MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> is assigned automatically. No phone number needed.${s.auth.verifiedEmail ? ` Email verified for <b>${esc(s.auth.verifiedEmail)}</b>.` : ''}</div>
     <button class="btn primary lg block" type="submit">Enter MeshLink ${icon('chevronRight','sm')}</button>
   </form>`;
 }
@@ -234,7 +247,15 @@ app.addEventListener('click', (e) => {
     return;
   }
   if (a === 'auth-back') { e.preventDefault(); act.backToLogin(); return; }
-  if (a === 'resend-otp') { toast('Demo code resent: 123456', 'success'); return; }
+  if (a === 'resend-otp') {
+    const button = el;
+    button.disabled = true;
+    act.resendEmailVerification().then((r) => {
+      toast(r.ok ? (r.demo ? 'Demo code resent: 123456' : 'New code sent') : r.error, r.ok ? 'success' : 'error');
+    }).catch(() => toast('Verification service unavailable', 'error'))
+      .finally(() => { button.disabled = false; });
+    return;
+  }
   if (a === 'pick-avatar') { document.getElementById('auth-avatar-file')?.click(); return; }
   if (a === 'add-status') { openAddStatus(); return; }
   if (a === 'view-status') { openStatusViewer(el.dataset.id); return; }
@@ -287,14 +308,29 @@ app.addEventListener('change', (e) => {
   }
 });
 
-app.addEventListener('submit', (e) => {
+app.addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.target.dataset.form;
   if (form === 'login') {
-    act.requestOtp(getState().auth.meshId);
+    act.setStage('email');
+  } else if (form === 'verify-email') {
+    const email = document.getElementById('verify-email')?.value.trim();
+    const button = document.getElementById('send-code');
+    if (button) button.disabled = true;
+    try {
+      const r = await act.requestEmailVerification(email);
+      if (!r.ok) toast(r.error, 'error');
+      else if (r.demo) toast('Demo mode — use code 123456', 'success');
+    } catch {
+      toast('Verification service unavailable', 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
   } else if (form === 'otp') {
     const code = document.getElementById('otp-code')?.value.trim();
-    if (!act.verifyOtp(code)) toast('Invalid demo code — use 123456', 'error');
+    const r = await act.verifyEmailCode(code);
+    if (!r.ok) toast(r.error, 'error');
+    else toast('Email verified', 'success');
   } else if (form === 'profile') {
     const name = document.getElementById('profile-name')?.value.trim();
     if (!name) return toast('Your name is required', 'error');

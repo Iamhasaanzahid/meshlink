@@ -26,6 +26,9 @@ export async function initStore() {
   delete state.user?.phone;
   delete state.user?.email;
   state.auth.locked = isLocked();
+  delete state.auth.otp;
+  delete state.auth.phone;
+  delete state.auth.pendingPhone;
   if (!state.settings) state.settings = seedState().settings;
   if (!state.ui) state.ui = seedState().ui;
   if (!state.ai) state.ai = { model: 'meshlink-mini', messages: [], endpoint: '' };
@@ -47,6 +50,10 @@ function migrate(s) {
   s.calls = s.calls || [];
   s.auth = { ...base.auth, ...(s.auth || {}) };
   s.auth.meshId = s.auth.meshId || generateMeshId();
+  delete s.auth.otp;
+  delete s.auth.phone;
+  delete s.auth.pendingPhone;
+  if (s.auth.stage === 'otp' && !s.auth.verifyEmail) s.auth.stage = 'login';
   s.ui.chatSearchOpen = !!s.ui.chatSearchOpen;
   s.ai = { model: 'meshlink-mini', messages: [], endpoint: '', ...(s.ai || {}) };
   s.contacts = s.contacts || [];
@@ -277,30 +284,65 @@ export const act = {
     state.auth.meshId = meshId;
     state.auth.stage = 'ready';
     state.auth.verified = true;
+    state.auth.verifiedEmail = '';
+    state.auth.verifyEmail = '';
+    state.auth.verifyDemo = false;
     commit();
     sendRemote({ type: 'profile:update', user: state.user });
   },
-  requestOtp(identifier) {
-    const assigned = String(identifier || '').replace(/\D/g, '').slice(0, 10);
-    const clean = assigned.length === 10 ? assigned : (state.auth.meshId || generateMeshId());
-    state.auth.meshId = clean;
-    state.auth.phone = '';
-    state.auth.pendingPhone = clean;
-    state.auth.stage = 'otp';
-    state.auth.otp = '123456';
-    commit();
-    return true;
-  },
-  verifyOtp(code) {
-    if (String(code || '').trim() !== state.auth.otp) return false;
-    state.auth.verified = true;
-    if (state.user) {
-      state.auth.stage = 'ready';
-    } else {
-      state.auth.stage = 'profile';
+  /** Ask the server for a 6-digit code. Email is verification only, not login. */
+  async requestEmailVerification(email) {
+    const clean = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      return { ok: false, error: 'Enter a valid email address' };
     }
+    state.auth.meshId = state.auth.meshId || generateMeshId();
+    state.auth.verifyEmail = clean;
+    commit({ silent: true });
+    let res, data;
+    try {
+      res = await fetch('/api/verify/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: clean, meshId: state.auth.meshId }),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch {
+      return { ok: false, error: 'Verification service unavailable' };
+    }
+    if (!res.ok) return { ok: false, error: data.error || 'Could not send verification code' };
+    state.auth.verifyEmail = clean;
+    state.auth.verifyDemo = !!data.demo;
+    state.auth.stage = 'otp';
     commit();
-    return true;
+    return { ok: true, demo: !!data.demo };
+  },
+  resendEmailVerification() {
+    return act.requestEmailVerification(state.auth.verifyEmail || state.auth.verifiedEmail);
+  },
+  async verifyEmailCode(code) {
+    const value = String(code || '').trim().replace(/\D/g, '').slice(0, 6);
+    if (!/^\d{6}$/.test(value)) return { ok: false, error: 'Enter the 6-digit code' };
+    let res, data;
+    try {
+      res = await fetch('/api/verify/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: state.auth.verifyEmail, meshId: state.auth.meshId, code: value,
+        }),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch {
+      return { ok: false, error: 'Verification service unavailable' };
+    }
+    if (!res.ok) return { ok: false, error: data.error || 'Invalid code' };
+    state.auth.verified = true;
+    state.auth.verifiedEmail = data.email || state.auth.verifyEmail;
+    state.auth.verifyEmail = state.auth.verifiedEmail;
+    state.auth.stage = state.user ? 'ready' : 'profile';
+    commit();
+    return { ok: true, email: state.auth.verifiedEmail };
   },
   completeProfile({ name, about = '', avatar = '' }) {
     const existing = state.user || demoProfile;
@@ -334,6 +376,9 @@ export const act = {
     state.user = { ...demoProfile, meshId: state.auth.meshId || demoProfile.meshId, lastSeen: Date.now() };
     state.auth.stage = 'ready';
     state.auth.verified = true;
+    state.auth.verifiedEmail = '';
+    state.auth.verifyEmail = '';
+    state.auth.verifyDemo = false;
     commit();
   },
   logout() {
@@ -414,6 +459,8 @@ export const act = {
   backToLogin() {
     state.auth.stage = 'login';
     state.auth.verified = false;
+    state.auth.verifyEmail = '';
+    state.auth.verifyDemo = false;
     commit();
   },
 

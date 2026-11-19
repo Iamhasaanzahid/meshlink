@@ -9,7 +9,8 @@ export const uid = (prefix = 'id') => {
   return `${prefix}_${Date.now().toString(36)}${counter.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 };
 
-/* MeshLink assigns a private 10-digit identity. No phone number or email is ever asked for. */
+/* MeshLink assigns a private 10-digit identity. Email is only used to verify it,
+ * never as a login name or phone number. */
 export function generateMeshId() {
   const bytes = new Uint8Array(10);
   if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);

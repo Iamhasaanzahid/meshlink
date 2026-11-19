@@ -1,18 +1,66 @@
-/* MeshLink QR pairing Durable Object.
+/* MeshLink QR pairing Durable Object + email OTP verification.
  * Deployed as a separate Worker, then bound into the Pages project.
+ *
+ * The MeshLink ID stays the identity. Email is only used to verify it —
+ * it is never a login name and never a phone number. No plaintext OTP is
+ * stored: only an HMAC-SHA256 digest plus expiry/attempt metadata.
  */
 import { DurableObject } from 'cloudflare:workers';
 
 const TTL = 30_000;
+
+// Email verification settings. Real email needs RESEND_API_KEY; without it the
+// endpoint runs in demo mode and only accepts the demo code 123456.
+const DEV_OTP_SECRET = 'meshlink-dev-otp-secret';
+const OTP_TTL = 5 * 60_000;
+const OTP_COOLDOWN = 60_000;
+const OTP_MAX_ATTEMPTS = 5;
+const RATE_WINDOW = 10 * 60_000;
+const EMAIL_RATE_LIMIT = 5;
+const MESH_RATE_LIMIT = 10;
+const encoder = new TextEncoder();
+
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
   headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
 });
 
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase().slice(0, 254);
+const normalizeMeshId = (value) => String(value || '').replace(/\D/g, '').slice(0, 10);
+const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const otpMessage = (meshId, email, code) => `${meshId}|${email}|${code}`;
+
+async function hmacHex(secret, message) {
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  return Array.from(new Uint8Array(signature), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Compare two strings without leaking their contents through early exit. */
+function constantTimeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
+function rateAllow(rate, key, limit, now) {
+  const times = (rate[key] || []).filter((t) => t > now - RATE_WINDOW);
+  if (times.length >= limit) { rate[key] = times; return false; }
+  times.push(now);
+  rate[key] = times;
+  return true;
+}
+
 export class PairSessions extends DurableObject {
   constructor(state, env) {
     super(state, env);
     this.state = state;
+    this.env = env;
     this.sockets = new Set();
   }
 
@@ -42,6 +90,7 @@ export class PairSessions extends DurableObject {
     }
     const url = new URL(request.url);
     const path = url.pathname;
+    if (path.startsWith('/api/verify/')) return this.handleVerify(request, url, path);
     const sessions = (await this.state.storage.get('sessions')) || {};
     const now = Date.now();
 
@@ -81,6 +130,163 @@ export class PairSessions extends DurableObject {
     }
 
     return json({ error: 'not found' }, 404);
+  }
+
+  // ------------------------------------------------------ email verification
+  handleVerify(request, url, path) {
+    if (path === '/api/verify/send' && request.method === 'POST') return this.verifySend(request);
+    if (path === '/api/verify/confirm' && request.method === 'POST') return this.verifyConfirm(request);
+    if (path === '/api/verify/status' && request.method === 'GET') return this.verifyStatus(url);
+    return json({ error: 'not found' }, 404);
+  }
+
+  get otpSecret() {
+    return this.env?.OTP_SECRET || DEV_OTP_SECRET;
+  }
+
+  async otpHash(meshId, email, code) {
+    return hmacHex(this.otpSecret, otpMessage(meshId, email, code));
+  }
+
+  async verifyMeta() {
+    const meta = (await this.state.storage.get('verifyMeta')) || {};
+    const now = Date.now();
+    meta.pending = meta.pending || {};
+    meta.cooldown = meta.cooldown || {};
+    meta.rate = meta.rate || {};
+    for (const [key, until] of Object.entries(meta.cooldown)) {
+      if (until <= now) delete meta.cooldown[key];
+    }
+    for (const [key, times] of Object.entries(meta.rate)) {
+      const fresh = (times || []).filter((t) => t > now - RATE_WINDOW);
+      if (fresh.length) meta.rate[key] = fresh; else delete meta.rate[key];
+    }
+    return meta;
+  }
+
+  async verifySend(request) {
+    let payload = {};
+    try { payload = await request.json(); } catch { /* noop */ }
+    const email = normalizeEmail(payload.email);
+    const meshId = normalizeMeshId(payload.meshId);
+    if (!validEmail(email) || meshId.length !== 10) {
+      return json({ error: 'A valid email and 10-digit MeshLink ID are required' }, 400);
+    }
+
+    const now = Date.now();
+    const meta = await this.verifyMeta();
+    for (const [key, rec] of Object.entries(meta.pending)) {
+      if (!rec || rec.expires <= now) delete meta.pending[key];
+    }
+    if (meta.cooldown[email] > now) {
+      return json({
+        error: 'Please wait before requesting another code',
+        retryAfter: Math.ceil((meta.cooldown[email] - now) / 1000),
+      }, 429);
+    }
+    if (!rateAllow(meta.rate, `email:${email}`, EMAIL_RATE_LIMIT, now)
+      || !rateAllow(meta.rate, `mesh:${meshId}`, MESH_RATE_LIMIT, now)) {
+      await this.state.storage.put('verifyMeta', meta);
+      return json({ error: 'Too many verification requests. Try again later.' }, 429);
+    }
+    meta.cooldown[email] = now + OTP_COOLDOWN;
+
+    const apiKey = this.env?.RESEND_API_KEY;
+    const demo = !apiKey;
+    // In demo mode the only accepted 6-digit code is 123456 — nothing is sent.
+    const code = demo
+      ? '123456'
+      : String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+    if (!demo) {
+      try {
+        const sent = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: this.env.VERIFY_FROM || 'onboarding@resend.dev',
+            to: [email],
+            subject: 'MeshLink verification code',
+            text: `Your MeshLink verification code is ${code}. It expires in 5 minutes.\n\nIf you did not request this, you can ignore this email.`,
+          }),
+        });
+        if (!sent.ok) {
+          await this.state.storage.put('verifyMeta', meta);
+          return json({ error: 'Could not send verification email' }, 502);
+        }
+      } catch {
+        await this.state.storage.put('verifyMeta', meta);
+        return json({ error: 'Could not send verification email' }, 502);
+      }
+    }
+
+    meta.pending[`${meshId}|${email}`] = {
+      hash: await this.otpHash(meshId, email, code),
+      expires: now + OTP_TTL,
+      attempts: 0,
+    };
+    await this.state.storage.put('verifyMeta', meta);
+    // Only expose the demo flag — never the code, even in demo mode.
+    return json({ ok: true, demo });
+  }
+
+  async verifyConfirm(request) {
+    let payload = {};
+    try { payload = await request.json(); } catch { /* noop */ }
+    const email = normalizeEmail(payload.email);
+    const meshId = normalizeMeshId(payload.meshId);
+    const code = String(payload.code || '').trim().replace(/\D/g, '').slice(0, 6);
+    if (!validEmail(email) || meshId.length !== 10 || !/^\d{6}$/.test(code)) {
+      return json({ error: 'A valid email, MeshLink ID and 6-digit code are required' }, 400);
+    }
+
+    const now = Date.now();
+    const meta = await this.verifyMeta();
+    const key = `${meshId}|${email}`;
+    const pending = meta.pending[key];
+    if (!pending || pending.expires <= now) {
+      if (pending) delete meta.pending[key];
+      await this.state.storage.put('verifyMeta', meta);
+      return json({ error: 'Code expired — please request a new one' }, 410);
+    }
+    if (pending.attempts >= OTP_MAX_ATTEMPTS
+      || !rateAllow(meta.rate, `confirm:email:${email}`, 20, now)
+      || !rateAllow(meta.rate, `confirm:mesh:${meshId}`, 30, now)) {
+      delete meta.pending[key];
+      await this.state.storage.put('verifyMeta', meta);
+      return json({ error: 'Too many attempts — please request a new code' }, 429);
+    }
+    pending.attempts += 1;
+
+    const candidate = await this.otpHash(meshId, email, code);
+    if (!constantTimeEqual(candidate, pending.hash)) {
+      const exhausted = pending.attempts >= OTP_MAX_ATTEMPTS;
+      if (exhausted) delete meta.pending[key];
+      await this.state.storage.put('verifyMeta', meta);
+      return json({
+        error: exhausted ? 'Too many attempts — please request a new code' : 'Invalid code',
+        attemptsLeft: Math.max(0, OTP_MAX_ATTEMPTS - pending.attempts),
+      }, exhausted ? 429 : 401);
+    }
+
+    delete meta.pending[key];
+    await this.state.storage.put('verifyMeta', meta);
+    // Verified record is keyed by meshId|email so status can find any email.
+    await this.state.storage.put(key, { verified: true, email, at: now });
+    return json({ verified: true, email });
+  }
+
+  async verifyStatus(url) {
+    const meshId = normalizeMeshId(url.searchParams.get('meshId'));
+    if (meshId.length !== 10) return json({ verified: false });
+    const records = await this.state.storage.list({ prefix: `${meshId}|` });
+    let found = null;
+    for (const value of records.values()) {
+      if (value?.verified && value.email && (!found || (value.at || 0) > (found.at || 0))) found = value;
+    }
+    return found ? json({ verified: true, email: found.email }) : json({ verified: false });
   }
 }
 

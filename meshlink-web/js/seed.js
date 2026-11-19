@@ -219,7 +219,10 @@ export function seedState() {
 
   return {
     version: 1,
-    auth: { stage: 'login', meshId: generateMeshId(), otp: '123456', remember: true, locked: false },
+    auth: {
+      stage: 'login', meshId: generateMeshId(), remember: true, locked: false,
+      verified: false, verifiedEmail: '', verifyEmail: '', verifyDemo: false,
+    },
     user: null,
     contacts,
     chats,

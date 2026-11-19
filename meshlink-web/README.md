@@ -15,7 +15,7 @@ python3 server.py
 - App: http://localhost:8000
 - WebSocket relay: `ws://localhost:8765`
 
-Open the app in two tabs (or two devices on the same LAN) to see the relay mirror messages. Use the demo account button, then OTP `123456`.
+Open the app in two tabs (or two devices on the same LAN) to see the relay mirror messages. The normal flow generates a 10-digit MeshLink ID, asks for an email, and confirms a 6-digit code (`123456` in local demo mode). The demo account and QR login buttons still work without email.
 
 ### Offline AI (optional)
 
@@ -30,7 +30,7 @@ If no engine is running, MeshLink AI switches to its built-in offline responder.
 
 ## What is included
 
-- **Identity** — the app generates a private 10-digit MeshLink ID. No phone number or email is ever requested or stored.
+- **Identity** — the app generates a private 10-digit MeshLink ID. No phone number is ever requested. Email is optional and only used to verify the ID with a 6-digit OTP — never as a login or phone number. Only an HMAC hash of the code is stored.
 - **Security** — AES-256-GCM encrypted local vault, PBKDF2-SHA256 key derivation, optional 6-digit app PIN, 5-minute auto-lock, lock screen, encrypted cross-tab sync.
 - **MeshLink AI** — free offline assistant branded as MeshLink AI. Uses a local Ollama engine when present, with a built-in offline responder as fallback.
 - **Chats** — search, pinned chats, unread badges, previews, groups, dark/light themes, wallpaper, message replies, reactions, stars, forwarding, deletion, attachments, image/video/audio/doc media, emoji/sticker/GIF pickers.
@@ -92,3 +92,4 @@ The demo intentionally keeps the local mesh in-browser (`BroadcastChannel`) so i
 - Media is stored as data URLs so it survives reloads; very large files may exceed browser storage quotas.
 - WebRTC calls use local media only in this demo; signaling events are relayed through the same WebSocket for demonstration.
 - The relay is unauthenticated and for local demos only. The AI proxy talks only to the local engine address.
+- Email verification: set `RESEND_API_KEY` and `VERIFY_FROM` to send real codes via Resend, and `OTP_SECRET` to sign them (a constant dev fallback is used otherwise). Without `RESEND_API_KEY`, the server openly runs in demo mode and only accepts `123456`.
