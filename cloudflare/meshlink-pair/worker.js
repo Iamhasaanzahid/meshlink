@@ -24,7 +24,14 @@ const encoder = new TextEncoder();
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
-  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  headers: {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+  },
 });
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase().slice(0, 254);
@@ -64,6 +71,15 @@ export class PairSessions extends DurableObject {
     this.state = state;
     this.env = env;
     this.sockets = new Set();
+    // Per-isolate rate buckets for pairing endpoints (persisted verifyMeta is
+    // handled separately below).
+    this.rate = {};
+  }
+
+  clientIp(request) {
+    return request.headers.get('CF-Connecting-IP')
+      || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+      || 'unknown';
   }
 
   /** Fan out realtime events to every other connected browser/device. */
@@ -104,6 +120,9 @@ export class PairSessions extends DurableObject {
     // WhatsApp Web style manual fallback: the phone shows an 8-digit code,
     // the web app claims it, then the phone approves the claimed session.
     if (path === '/api/pair/manual' && request.method === 'POST') {
+      if (!rateAllow(this.rate, `manual:${this.clientIp(request)}`, 20, now)) {
+        return json({ error: 'Too many pairing requests. Try again later.' }, 429);
+      }
       let payload = {};
       try { payload = await request.json(); } catch { /* noop */ }
       const session = Array.from(crypto.getRandomValues(new Uint8Array(24)),
@@ -124,6 +143,9 @@ export class PairSessions extends DurableObject {
     }
 
     if (path === '/api/pair/claim' && request.method === 'POST') {
+      if (!rateAllow(this.rate, `claim:${this.clientIp(request)}`, 40, now)) {
+        return json({ error: 'Too many code attempts. Try again later.' }, 429);
+      }
       let payload = {};
       try { payload = await request.json(); } catch { /* noop */ }
       const code = String(payload.code || '').replace(/\D/g, '');
@@ -138,6 +160,9 @@ export class PairSessions extends DurableObject {
     }
 
     if (path === '/api/pair/session' && request.method === 'POST') {
+      if (!rateAllow(this.rate, `session:${this.clientIp(request)}`, 20, now)) {
+        return json({ error: 'Too many pairing requests. Try again later.' }, 429);
+      }
       const session = Array.from(crypto.getRandomValues(new Uint8Array(24)),
         (b) => b.toString(16).padStart(2, '0')).join('');
       const token = Array.from(crypto.getRandomValues(new Uint8Array(16)),
@@ -165,7 +190,7 @@ export class PairSessions extends DurableObject {
       try { payload = await request.json(); } catch { /* noop */ }
       const s = sessions[String(payload.session || '')];
       if (!s || s.expires < now) return json({ error: 'expired' }, 410);
-      if (!s.token || String(payload.token || '') !== s.token) {
+      if (!s.token || !constantTimeEqual(String(payload.token || ''), s.token)) {
         return json({ error: 'invalid token' }, 403);
       }
       s.status = 'approved';
