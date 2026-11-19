@@ -1,0 +1,380 @@
+/* MeshLink app shell: auth, navigation, rendering, global events. */
+import { initStore, act, getState, subscribe, unreadTotal, chatById } from './store.js';
+import { icon, avatar, toast, confirmDialog } from './ui.js';
+import { esc, playChime, browserNotify, canNotify, formatMeshId } from './utils.js';
+import { hasPin, securitySummary } from './security.js';
+import {
+  renderSidebar, renderChatMain, mountChat, captureScroll, onComposerInput,
+  handleChatAction, startVoiceRecording,
+} from './chats.js';
+import { renderStatusPage, openAddStatus, openStatusViewer } from './views/status.js';
+import { renderCallsPage, handleCallsAction } from './views/calls.js';
+import { renderNearbyPage, handleNearbyAction } from './views/nearby.js';
+import { renderSettingsPage, handleSettingsAction } from './views/settings.js';
+import { renderStarredPage, renderArchivedPage, handleCollectionsAction } from './views/collections.js';
+import { renderAiPage, handleAiAction, askAi, refreshAiStatus } from './views/ai.js';
+import { netState, onNetChange } from './transport/connectivity.js';
+import { initRealtime, onRemote } from './realtime.js';
+import { initLocalTransport } from './transport/localTransport.js';
+import { openCall, closeCall } from './media/call.js';
+import { startQrLogin, renderQr, approvePair } from './pairing.js';
+
+const app = document.getElementById('app');
+let profilePhoto = '';
+let prevNet = null;
+let lastActivity = Date.now();
+let qrStop = null;
+let qrCurrent = null;
+
+await initStore();
+initRealtime();
+initLocalTransport();
+
+const WIDE = new Set(['calls', 'nearby', 'status', 'settings', 'starred', 'archived', 'ai']);
+
+function render() {
+  const s = getState();
+  document.documentElement.dataset.theme = s.settings.theme || 'dark';
+  if (s.auth.locked) {
+    app.innerHTML = lockHTML();
+    const first = document.getElementById('pin-1');
+    first?.focus();
+    return;
+  }
+  if (s.auth.stage !== 'ready' || !s.user) {
+    if (s.auth.stage !== 'qr' && qrStop) { qrStop(); qrStop = null; }
+    const active = document.activeElement?.id;
+    const pos = document.activeElement?.selectionStart;
+    app.innerHTML = authHTML(s);
+    restoreFocus(active, pos);
+    if (s.auth.stage === 'qr' && !qrStop) startQrFlow();
+    return;
+  }
+  captureScroll();
+  const active = document.activeElement?.id;
+  const pos = document.activeElement?.selectionStart;
+  const view = s.ui.view || 'chats';
+  const wide = WIDE.has(view);
+  let content = '';
+  if (view === 'chats') content = renderChatMain(s);
+  else if (view === 'status') content = renderStatusPage(s);
+  else if (view === 'calls') content = renderCallsPage(s);
+  else if (view === 'nearby') content = renderNearbyPage(s);
+  else if (view === 'settings') content = renderSettingsPage(s);
+  else if (view === 'starred') content = renderStarredPage(s);
+  else if (view === 'archived') content = renderArchivedPage(s);
+  else if (view === 'ai') content = renderAiPage(s);
+  const chatOpen = view === 'chats' && s.ui.activeChatId;
+  app.innerHTML = `<div class="app ${wide ? 'wide' : ''} ${chatOpen ? 'chat-open' : ''}">${railHTML(s)}${view === 'chats' ? renderSidebar(s) : ''}<main class="main">${content}</main></div>`;
+  mountChat(s);
+  if (view === 'ai') refreshAiStatus();
+  restoreFocus(active, pos);
+}
+
+function restoreFocus(id, pos) {
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  try { el.focus({ preventScroll: true }); if (typeof pos === 'number' && el.setSelectionRange) el.setSelectionRange(pos, pos); } catch { /* noop */ }
+}
+
+function railHTML(s) {
+  const unread = unreadTotal();
+  const view = s.ui.view || 'chats';
+  const items = [
+    ['chats', 'chat', 'Chats', unread],
+    ['calls', 'calls', 'Calls', 0],
+    ['nearby', 'wifi', 'Nearby', 0],
+    ['ai', 'sparkles', 'MeshLink AI', 0],
+    ['status', 'status', 'Status', 0],
+    ['starred', 'star', 'Starred', 0],
+    ['archived', 'archive', 'Archived', 0],
+    ['settings', 'settings', 'Settings', 0],
+  ];
+  return `<nav class="rail">
+    <div class="rail-logo">${icon('message')}</div>
+    <div class="rail-nav">${items.map(([v, ic, label, badge]) => `<button class="nav-btn ${view === v ? 'active' : ''}" data-action="nav" data-view="${v}" title="${label}">${icon(ic)}<span>${label}</span>${badge ? `<span class="nbadge">${badge > 99 ? '99+' : badge}</span>` : ''}</button>`).join('')}</div>
+    <div class="rail-spacer"></div>
+    <div class="rail-profile" data-action="nav" data-view="settings" title="Profile">${avatar(s.user || {}, { online: true })}</div>
+    <div class="rail-version">v1.0</div>
+  </nav>`;
+}
+
+function lockHTML() {
+  const sec = securitySummary();
+  return `<div class="lock-screen"><div class="lock-card">
+    <div class="lock-logo">${icon('lock')}</div>
+    <h1>MeshLink is locked</h1>
+    <p>Enter your 6-digit app PIN to open your encrypted vault.</p>
+    <div class="pin-dots" id="pin-dots">${Array.from({ length: 6 }, () => '<span></span>').join('')}</div>
+    <input type="hidden" id="pin-display" value="">
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-pad">${[1,2,3,4,5,6,7,8,9].map((n) => `<button class="pin-key" data-action="pin-digit" data-digit="${n}">${n}</button>`).join('')}<button class="pin-key mute" data-action="pin-forgot">${icon('key')}</button><button class="pin-key" data-action="pin-digit" data-digit="0">0</button><button class="pin-key mute" data-action="pin-delete">${icon('back')}</button></div>
+    <button class="btn primary lg block" data-action="pin-submit" id="pin-submit">${icon('lock','sm')} Unlock</button>
+    <div class="auth-note">${icon('shield')} ${esc(sec.cipher)} · ${esc(sec.kdf)} · offline</div>
+  </div></div>`;
+}
+
+function authHTML(s) {
+  const stage = s.auth.stage || 'login';
+  return `<div class="auth">
+    <section class="auth-art">
+      <div class="auth-brand"><span class="auth-logo">${icon('message')}</span> MeshLink</div>
+      <div class="auth-copy">
+        <div class="auth-kicker"><span class="live"></span> Hybrid messenger + calls</div>
+        <h1>Messages that<br><span class="grad">move with you.</span></h1>
+        <p>Global chats and WebRTC calls when you're online. Nearby hotspot mesh when the internet disappears. A queued outbox when nothing is reachable.</p>
+        <div class="auth-points"><span class="auth-point">${icon('globe')} Global relay</span><span class="auth-point">${icon('wifi')} Offline mesh</span><span class="auth-point">${icon('lock')} Local-first</span><span class="auth-point">${icon('phone')} 3-tier calls</span></div>
+        <div class="auth-mock"><div class="auth-bubble"><div class="who">${icon('wifi','xs')} Mesh relay</div>No signal? I'll wait in the outbox and sync later.</div><div class="auth-bubble out"><div class="who">${icon('checkCheck','xs')} Delivered</div>Purple looks unreal 💜</div></div>
+      </div>
+      <div class="auth-foot">MeshLink keeps messages usable without a data package. Demo runs fully in your browser.</div>
+    </section>
+    <section class="auth-panel"><div class="auth-card">
+      <div class="auth-mobile-brand"><span class="auth-logo">${icon('message')}</span> MeshLink</div>
+      ${stage === 'login' ? loginHTML() : stage === 'otp' ? otpHTML(s) : stage === 'qr' ? qrHTML() : profileHTML(s)}
+    </div></section>
+  </div>`;
+}
+
+function loginHTML() {
+  const id = formatMeshId(getState().auth.meshId);
+  return `<div class="auth-card-head"><h2>Welcome to MeshLink</h2><p>MeshLink gives you a private 10-digit identity. Your phone number and email are never requested.</p></div>
+  <div class="mesh-id-card"><div class="mid-top">${icon('shield')} Your MeshLink ID</div><div class="mid-number">${esc(id)}</div><div class="mid-sub">Generated securely on this device · share only with people you want to chat with</div></div>
+  <form class="auth-form" data-form="login">
+    <button class="btn primary lg block" type="submit">Continue ${icon('chevronRight','sm')}</button>
+    <div class="auth-or">or</div>
+    <button class="btn primary lg block" type="button" data-action="qr-login">${icon('qr')} Scan QR with MeshLink phone</button>
+    <button class="btn lg block" type="button" data-action="demo-login">${icon('sparkles')} Explore demo account</button>
+    <div class="auth-note">${icon('info')} QR login rotates every 30 seconds. Demo OTP is <b style="color:var(--accent-3)">123456</b>.</div>
+  </form>`;
+}
+
+function otpHTML(s) {
+  return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
+  <div class="auth-card-head"><h2>Verify your ID</h2><p>Enter the 6-digit demo code for MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId || s.auth.pendingPhone || ''))}</b>.</p></div>
+  <form class="auth-form" data-form="otp"><input class="input otp-input" id="otp-code" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code"><button class="btn primary lg block" type="submit">Verify ${icon('check','sm')}</button><button class="btn ghost block" type="button" data-action="resend-otp">Resend code</button><div class="auth-demo">Demo code: <b>123456</b></div></form>`;
+}
+
+function qrHTML() {
+  return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
+  <div class="auth-card-head"><h2>Link with your phone</h2><p>Open <b>MeshLink</b> on your phone → Settings → <b>Link web</b> → scan this code. The QR changes every 30 seconds.</p></div>
+  <div class="qr-wrap">
+    <div class="qr-frame" id="qr-image"></div>
+    <div class="qr-expiry"><span class="qr-live"></span> <span id="qr-left">30</span>s · rotating</div>
+    <div class="qr-status" id="qr-status">Waiting for your phone…</div>
+  </div>
+  <button class="btn ghost block" type="button" data-action="demo-scan">${icon('sparkles','sm')} Simulate phone scan</button>
+  <div class="auth-note">${icon('shield')} One-time token · expires automatically · no password or phone number.</div>`;
+}
+
+function profileHTML(s) {
+  return `<div class="auth-card-head"><h2>Set up your profile</h2><p>This is how contacts see you. You can change it later in Settings.</p></div>
+  <form class="auth-form" data-form="profile">
+    <div class="stack" style="align-items:center;gap:8px"><div id="auth-avatar">${avatar({ name: 'New profile', avatar: profilePhoto }, { size: 'xl' })}</div><button class="btn sm" type="button" data-action="pick-avatar">${icon('upload','sm')} Add photo</button><input type="file" id="auth-avatar-file" accept="image/*" hidden></div>
+    <div class="field"><label>Your name</label><input class="input" id="profile-name" placeholder="e.g. Ali Hassan" value="${esc(s.user?.name || '')}" required></div>
+    <div class="field"><label>About</label><input class="input" id="profile-about" placeholder="Hey there! I am using MeshLink." value="${esc(s.user?.about || '')}"></div>
+    <div class="auth-note" style="margin-bottom:14px">${icon('shield')} Your MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> is assigned automatically. No phone number needed.</div>
+    <button class="btn primary lg block" type="submit">Enter MeshLink ${icon('chevronRight','sm')}</button>
+  </form>`;
+}
+
+function startQrFlow() {
+  qrStop?.();
+  qrStop = startQrLogin({
+    onUpdate(info) {
+      qrCurrent = info;
+      const frame = document.getElementById('qr-image');
+      if (frame && info.payload) renderQr(frame, info.payload);
+      const left = document.getElementById('qr-left');
+      if (left) left.textContent = info.remaining ?? 30;
+      const status = document.getElementById('qr-status');
+      if (status) {
+        status.textContent = info.status === 'expired'
+          ? 'Code expired — generating a fresh one…'
+          : info.status === 'approved'
+            ? 'Phone confirmed. Signing you in…'
+            : 'Waiting for your phone…';
+        status.classList.toggle('approved', info.status === 'approved');
+      }
+    },
+    onError(err) {
+      const status = document.getElementById('qr-status');
+      if (status) status.textContent = err?.message || 'Pairing server unavailable';
+    },
+    onApproved(peer) {
+      qrStop?.();
+      qrStop = null;
+      act.linkFromPhone(peer);
+      toast('MeshLink phone linked successfully', 'success');
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ events */
+app.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const a = el.dataset.action;
+  if (handleChatAction(a, el, e)) return;
+  if (handleCallsAction(a, el)) return;
+  if (handleNearbyAction(a, el)) return;
+  if (handleSettingsAction(a, el)) return;
+  if (handleCollectionsAction(a, el)) return;
+  if (a.startsWith('ai-')) { handleAiAction(a, el); return; }
+  if (a === 'nav') { act.setView(el.dataset.view); return; }
+  if (a === 'demo-login') { act.loginDemo(); return; }
+  if (a === 'qr-login') { act.setStage('qr'); return; }
+  if (a === 'demo-scan') {
+    if (!qrCurrent) { toast('QR code is still loading', 'warn'); return; }
+    approvePair(qrCurrent.session, qrCurrent.token, {
+      meshId: (qrCurrent.peer?.meshId || '1234567890'),
+      name: qrCurrent.peer?.name || 'Ali Hassan (phone)',
+    }).then(() => toast('Scan approved · waiting for web', 'success'))
+      .catch((err) => toast(err.message, 'error'));
+    return;
+  }
+  if (a === 'auth-back') { e.preventDefault(); act.backToLogin(); return; }
+  if (a === 'resend-otp') { toast('Demo code resent: 123456', 'success'); return; }
+  if (a === 'pick-avatar') { document.getElementById('auth-avatar-file')?.click(); return; }
+  if (a === 'add-status') { openAddStatus(); return; }
+  if (a === 'view-status') { openStatusViewer(el.dataset.id); return; }
+  if (a === 'close-call') { closeCall(); return; }
+  if (a === 'lock-app') { act.lockApp(); return; }
+  if (a === 'pin-digit') {
+    const input = document.getElementById('pin-display');
+    const dots = document.getElementById('pin-dots');
+    const current = (input?.value || '') + el.dataset.digit;
+    if (current.length > 6) return;
+    if (input) input.value = current;
+    if (dots) [...dots.children].forEach((d, i) => d.classList.toggle('on', i < current.length));
+    document.getElementById('pin-error').textContent = '';
+    return;
+  }
+  if (a === 'pin-delete') {
+    const input = document.getElementById('pin-display');
+    const dots = document.getElementById('pin-dots');
+    const current = (input?.value || '').slice(0, -1);
+    if (input) input.value = current;
+    if (dots) [...dots.children].forEach((d, i) => d.classList.toggle('on', i < current.length));
+    return;
+  }
+  if (a === 'pin-submit') { submitPin(); return; }
+  if (a === 'pin-forgot') {
+    confirmDialog({ title: 'Reset this device?', message: 'Your encrypted vault will be erased and a fresh MeshLink ID will be generated. This cannot be undone.', confirmLabel: 'Erase & reset' })
+      .then(async (ok) => { if (ok) { await act.resetDemo(); toast('MeshLink reset with a new ID','success'); } });
+    return;
+  }
+});
+
+app.addEventListener('input', (e) => {
+  if (e.target.id === 'chat-search') { act.setSearch(e.target.value); render(); }
+  else if (e.target.id === 'msg-search') act.setChatSearch(e.target.value);
+  else if (e.target.id === 'composer-input') onComposerInput(e.target.value);
+  else if (e.target.id === 'ai-input') { const el = document.getElementById('ai-send'); if (el) el.classList.toggle('ready', !!e.target.value.trim()); }
+  lastActivity = Date.now();
+});
+
+app.addEventListener('change', (e) => {
+  if (['file-image', 'file-camera', 'file-video', 'file-doc'].includes(e.target.id)) {
+    import('./chats.js').then((m) => m.handleFiles(e.target.files));
+  }
+  if (e.target.id === 'auth-avatar-file') {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { profilePhoto = String(r.result); const box = document.getElementById('auth-avatar'); if (box) box.innerHTML = avatar({ name: 'New profile', avatar: profilePhoto }, { size: 'xl' }); };
+    r.readAsDataURL(f);
+  }
+});
+
+app.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target.dataset.form;
+  if (form === 'login') {
+    act.requestOtp(getState().auth.meshId);
+  } else if (form === 'otp') {
+    const code = document.getElementById('otp-code')?.value.trim();
+    if (!act.verifyOtp(code)) toast('Invalid demo code — use 123456', 'error');
+  } else if (form === 'profile') {
+    const name = document.getElementById('profile-name')?.value.trim();
+    if (!name) return toast('Your name is required', 'error');
+    act.completeProfile({ name, about: document.getElementById('profile-about')?.value.trim(), avatar: profilePhoto });
+  } else if (form === 'ai') {
+    const t = document.getElementById('ai-input')?.value.trim();
+    if (t) askAi(t);
+  }
+});
+
+app.addEventListener('keydown', (e) => {
+  lastActivity = Date.now();
+  if (getState().auth.locked) {
+    if (/^[0-9]$/.test(e.key)) {
+      const btn = document.querySelector(`[data-action="pin-digit"][data-digit="${e.key}"]`);
+      btn?.click();
+      e.preventDefault();
+    } else if (e.key === 'Backspace') {
+      document.querySelector('[data-action="pin-delete"]')?.click();
+      e.preventDefault();
+    } else if (e.key === 'Enter') submitPin();
+    return;
+  }
+  if (e.target.id === 'ai-input' && e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const t = e.target.value.trim();
+    if (t) askAi(t);
+  }
+  if (e.target.id === 'composer-input') {
+    if (e.key === 'Enter' && !e.shiftKey && getState().settings.enterToSend) { e.preventDefault(); import('./chats.js').then((m) => m.sendCurrent()); }
+  }
+  if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+    e.preventDefault(); document.getElementById('chat-search')?.focus();
+  }
+  if (e.key === 'Escape') { document.querySelector('.emoji-pop')?.remove(); document.querySelector('.composer-attach')?.remove(); }
+});
+
+/* ------------------------------------------------------------- app security */
+async function submitPin() {
+  const input = document.getElementById('pin-display');
+  const err = document.getElementById('pin-error');
+  const pin = input?.value || '';
+  if (pin.length !== 6) { if (err) err.textContent = 'Enter all 6 digits'; return; }
+  const ok = await act.unlockApp(pin);
+  if (ok) { toast('Vault unlocked','success'); return; }
+  if (err) err.textContent = 'Incorrect PIN. Try again.';
+  if (input) input.value = '';
+  document.getElementById('pin-dots')?.querySelectorAll('span').forEach((d) => d.classList.remove('on'));
+}
+
+/* --------------------------------------------------------------- integration */
+subscribe(render);
+
+window.addEventListener('meshlink:start-call', (e) => openCall(e.detail.peerId, e.detail.type));
+window.addEventListener('meshlink:record-voice', () => startVoiceRecording());
+window.addEventListener('meshlink:incoming', (e) => {
+  const s = getState();
+  if (s.settings.sound) playChime('message');
+  if (s.settings.notifications && !e.detail.isActive) browserNotify(`${e.detail.chatTitle}`, `${e.detail.sender?.name || 'New'}: ${e.detail.body}`);
+});
+window.addEventListener('meshlink:queued', () => toast('Queued offline · 24h TTL','success'));
+window.addEventListener('meshlink:synced', (e) => toast(`${e.detail.count} queued message${e.detail.count>1?'s':''} synced`,'success'));
+onNetChange((n) => {
+  if (prevNet && prevNet !== n.key) toast(n.label, n.online ? 'success' : '');
+  prevNet = n.key;
+  render();
+});
+onRemote((event) => {
+  if (!event) return;
+  if (event.type === 'message:new' && event.message) act.receiveMessage(event.message, { remote: true });
+  if (event.type === 'message:update' && event.id) act.revertRemote(event.id, event.patch);
+  if (event.type === 'chat:read' && event.chatId) { const c = chatById(event.chatId); if (c) { c.unread = 0; render(); } }
+  if (event.type === 'typing' && event.chatId) act.setTyping(event.chatId, event.userId || 'u_peer', event.name || 'Someone', 2200);
+});
+
+render();
+window.addEventListener('pointerdown', () => { lastActivity = Date.now(); }, { passive: true });
+setInterval(() => {
+  if (getState().auth.locked) return;
+  if (hasPin() && Date.now() - lastActivity > 5 * 60 * 1000) act.lockApp();
+}, 30000);
+setInterval(() => { if (getState().auth.stage === 'ready') act.expireStatuses(); }, 60000);
+if (!canNotify() && getState().settings.notifications) { /* prompt on first user gesture via Settings */ }
