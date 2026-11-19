@@ -118,3 +118,41 @@ export function startQrLogin({ onUpdate, onApproved, onError } = {}) {
 export async function approvePair(session, token, identity) {
   return post('/approve', { session, token, ...identity });
 }
+
+/** Manual pairing fallback: claim the 8-digit code shown on the phone. */
+export async function claimPairCode(code) {
+  return post('/claim', { code });
+}
+
+/**
+ * Poll an already-claimed manual pairing session until the phone approves.
+ * @returns {() => void} stop function
+ */
+export function watchPair(session, { onUpdate, onApproved, onError } = {}) {
+  let stopped = false;
+  let timer = null;
+  const stop = () => { stopped = true; clearInterval(timer); };
+  async function poll() {
+    if (stopped) return;
+    try {
+      const data = await get(`/status?session=${encodeURIComponent(session)}`);
+      if (stopped) return;
+      if (data.status === 'approved') {
+        stop();
+        onApproved?.(data.peer || {});
+        return;
+      }
+      if (data.status === 'expired') {
+        stop();
+        onUpdate?.({ status: 'expired' });
+        return;
+      }
+      onUpdate?.({ status: 'pending' });
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+  timer = setInterval(poll, 1200);
+  poll();
+  return stop;
+}

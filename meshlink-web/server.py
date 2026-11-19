@@ -56,8 +56,10 @@ app = Flask(__name__, static_folder=str(ROOT), static_url_path="")
 # Short-lived QR pairing sessions. Tokens rotate every 30 seconds and are
 # accepted only once, from the phone that scanned the currently shown code.
 PAIR_TTL = 30
+PAIR_MANUAL_TTL = 90
 _pair_lock = threading.Lock()
 _pair_sessions: dict[str, dict] = {}
+_pair_codes: dict[str, str] = {}
 _pair_attempts: dict[str, list[float]] = {}
 
 
@@ -65,6 +67,8 @@ def _clean_pairs():
     now = time.time()
     for key in [k for k, v in _pair_sessions.items() if v["expires"] < now - 60]:
         _pair_sessions.pop(key, None)
+    for code in [c for c, sid in _pair_codes.items() if sid not in _pair_sessions]:
+        _pair_codes.pop(code, None)
     for key in [k for k, times in _pair_attempts.items() if not times or max(times) < now - 60]:
         _pair_attempts.pop(key, None)
 
@@ -183,6 +187,51 @@ def pair_session():
     return jsonify({"session": sid, "token": token, "expires": expires})
 
 
+@app.post("/api/pair/manual")
+def pair_manual():
+    """Phone-side manual pairing: show an 8-digit code for the web app."""
+    if not _rate_ok(request.remote_addr or "unknown"):
+        return jsonify({"error": "too many attempts"}), 429
+    payload = request.get_json(silent=True) or {}
+    mesh_id = ''.join(ch for ch in str(payload.get('meshId', '')) if ch.isdigit())[:10]
+    if len(mesh_id) != 10:
+        return jsonify({'error': 'A 10-digit MeshLink ID is required'}), 400
+    _clean_pairs()
+    sid = secrets.token_urlsafe(18)
+    token = secrets.token_hex(16)
+    code = ''.join(str(secrets.randbelow(10)) for _ in range(8))
+    expires = time.time() + PAIR_MANUAL_TTL
+    with _pair_lock:
+        _pair_sessions[sid] = {
+            "token": token,
+            "expires": expires,
+            "status": "pending",
+            "peer": None,
+            "peerName": str(payload.get('name', 'MeshLink phone'))[:48],
+            "peerMeshId": mesh_id,
+        }
+        _pair_codes[code] = sid
+    return jsonify({"session": sid, "token": token, "code": code, "expires": expires})
+
+
+@app.post("/api/pair/claim")
+def pair_claim():
+    """Web-side claim of a manual pairing code; phone still approves it."""
+    payload = request.get_json(silent=True) or {}
+    code = ''.join(ch for ch in str(payload.get('code', '')) if ch.isdigit())
+    with _pair_lock:
+        sid = _pair_codes.get(code)
+        session = _pair_sessions.get(sid) if sid else None
+        if not session or session["expires"] < time.time():
+            return jsonify({'error': 'invalid or expired code'}), 410
+        session['claimed'] = True
+    return jsonify({
+        'session': sid,
+        'meshId': session.get('peerMeshId', ''),
+        'name': session.get('peerName', 'MeshLink phone'),
+    })
+
+
 @app.get("/api/pair/status")
 def pair_status():
     sid = request.args.get("session", "")
@@ -195,6 +244,7 @@ def pair_status():
     return jsonify({
         "status": session["status"],
         "peer": session["peer"],
+        "claimed": bool(session.get("claimed")),
         "expires": session["expires"],
     })
 

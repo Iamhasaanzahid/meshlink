@@ -8,6 +8,8 @@
 import { DurableObject } from 'cloudflare:workers';
 
 const TTL = 30_000;
+// A manually typed pairing code gets a little longer so it can be entered.
+const MANUAL_TTL = 90_000;
 
 // Email verification settings. Real email needs RESEND_API_KEY; without it the
 // endpoint runs in demo mode and only accepts the demo code 123456.
@@ -92,7 +94,48 @@ export class PairSessions extends DurableObject {
     const path = url.pathname;
     if (path.startsWith('/api/verify/')) return this.handleVerify(request, url, path);
     const sessions = (await this.state.storage.get('sessions')) || {};
+    const codes = (await this.state.storage.get('codes')) || {};
     const now = Date.now();
+
+    for (const [code, sid] of Object.entries(codes)) {
+      if (!sessions[sid] || sessions[sid].expires < now) delete codes[code];
+    }
+
+    // WhatsApp Web style manual fallback: the phone shows an 8-digit code,
+    // the web app claims it, then the phone approves the claimed session.
+    if (path === '/api/pair/manual' && request.method === 'POST') {
+      let payload = {};
+      try { payload = await request.json(); } catch { /* noop */ }
+      const session = Array.from(crypto.getRandomValues(new Uint8Array(24)),
+        (b) => b.toString(16).padStart(2, '0')).join('');
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+        (b) => b.toString(16).padStart(2, '0')).join('');
+      const code = Array.from(crypto.getRandomValues(new Uint8Array(8)),
+        (b) => String(b % 10)).join('');
+      const expires = now + MANUAL_TTL;
+      sessions[session] = {
+        token, expires, status: 'pending', peer: null,
+        peerName: String(payload.name || 'MeshLink phone').slice(0, 48),
+        peerMeshId: String(payload.meshId || '').replace(/\D/g, '').slice(0, 10),
+      };
+      codes[code] = session;
+      await this.state.storage.put({ sessions, codes });
+      return json({ session, token, code, expires: expires / 1000 });
+    }
+
+    if (path === '/api/pair/claim' && request.method === 'POST') {
+      let payload = {};
+      try { payload = await request.json(); } catch { /* noop */ }
+      const code = String(payload.code || '').replace(/\D/g, '');
+      const sid = codes[code];
+      const s = sid ? sessions[sid] : null;
+      if (!s || s.expires < now) return json({ error: 'invalid or expired code' }, 410);
+      s.claimed = true;
+      s.status = 'claimed';
+      await this.state.storage.put('sessions', sessions);
+      await this.state.storage.put(`claimed:${sid}`, true);
+      return json({ session: sid, meshId: s.peerMeshId, name: s.peerName });
+    }
 
     if (path === '/api/pair/session' && request.method === 'POST') {
       const session = Array.from(crypto.getRandomValues(new Uint8Array(24)),
@@ -108,7 +151,13 @@ export class PairSessions extends DurableObject {
     if (path === '/api/pair/status') {
       const s = sessions[sid];
       if (!s || s.expires < now) return json({ status: 'expired' }, 410);
-      return json({ status: s.status, peer: s.peer, expires: s.expires / 1000 });
+      const claimed = await this.state.storage.get(`claimed:${sid}`);
+      return json({
+        status: s.status,
+        peer: s.peer,
+        claimed: !!(claimed || s.claimed),
+        expires: s.expires / 1000,
+      });
     }
 
     if (path === '/api/pair/approve' && request.method === 'POST') {

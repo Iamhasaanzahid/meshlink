@@ -17,7 +17,7 @@ import { netState, onNetChange } from './transport/connectivity.js';
 import { initRealtime, onRemote } from './realtime.js';
 import { initLocalTransport } from './transport/localTransport.js';
 import { openCall, closeCall } from './media/call.js';
-import { startQrLogin, renderQr, approvePair } from './pairing.js';
+import { startQrLogin, renderQr, approvePair, claimPairCode, watchPair } from './pairing.js';
 
 const app = document.getElementById('app');
 let profilePhoto = '';
@@ -25,6 +25,7 @@ let prevNet = null;
 let lastActivity = Date.now();
 let qrStop = null;
 let qrCurrent = null;
+let codeStop = null;
 
 await initStore();
 initRealtime();
@@ -133,7 +134,7 @@ function authHTML(s) {
     </section>
     <section class="auth-panel"><div class="auth-card">
       <div class="auth-mobile-brand"><span class="auth-logo">${icon('message')}</span> MeshLink</div>
-      ${stage === 'login' ? loginHTML() : stage === 'email' ? emailHTML(s) : stage === 'otp' ? otpHTML(s) : stage === 'qr' ? qrHTML() : profileHTML(s)}
+      ${stage === 'login' ? loginHTML() : stage === 'email' ? emailHTML(s) : stage === 'otp' ? otpHTML(s) : stage === 'qr' ? qrHTML() : stage === 'code' ? codeHTML() : profileHTML(s)}
     </div></section>
   </div>`;
 }
@@ -146,6 +147,7 @@ function loginHTML() {
     <button class="btn primary lg block" type="submit">Continue ${icon('chevronRight','sm')}</button>
     <div class="auth-or">or</div>
     <button class="btn primary lg block" type="button" data-action="qr-login">${icon('qr')} Scan QR with MeshLink phone</button>
+    <button class="btn lg block" type="button" data-action="code-login">${icon('key')} Use pairing code instead</button>
     <button class="btn lg block" type="button" data-action="demo-login">${icon('sparkles')} Explore demo account</button>
     <div class="auth-note">${icon('info')} QR login rotates every 30 seconds. Without email setup, the demo verification code is <b style="color:var(--accent-3)">123456</b>.</div>
   </form>`;
@@ -178,6 +180,17 @@ function qrHTML() {
   </div>
   <button class="btn ghost block" type="button" data-action="demo-scan">${icon('sparkles','sm')} Simulate phone scan</button>
   <div class="auth-note">${icon('shield')} One-time token · expires automatically · no password or phone number.</div>`;
+}
+
+function codeHTML() {
+  return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
+  <div class="auth-card-head"><h2>Enter pairing code</h2><p>On your phone open <b>MeshLink → Settings → Link web</b>, tap <b>Show pairing code</b>, then type the 8-digit code here.</p></div>
+  <form class="auth-form" data-form="pair-code">
+    <input class="input otp-input" id="pair-code" inputmode="numeric" maxlength="8" placeholder="••••••••" autocomplete="one-time-code">
+    <button class="btn primary lg block" type="submit">Link this browser ${icon('chevronRight','sm')}</button>
+  </form>
+  <div class="qr-status" id="pair-code-status">Waiting for the code…</div>
+  <div class="auth-note">${icon('shield')} The code expires in 90 seconds and the phone must approve the link.</div>`;
 }
 
 function profileHTML(s) {
@@ -236,7 +249,8 @@ app.addEventListener('click', (e) => {
   if (a.startsWith('ai-')) { handleAiAction(a, el); return; }
   if (a === 'nav') { act.setView(el.dataset.view); return; }
   if (a === 'demo-login') { act.loginDemo(); return; }
-  if (a === 'qr-login') { act.setStage('qr'); return; }
+  if (a === 'qr-login') { codeStop?.(); codeStop = null; act.setStage('qr'); return; }
+  if (a === 'code-login') { qrStop?.(); qrStop = null; act.setStage('code'); return; }
   if (a === 'demo-scan') {
     if (!qrCurrent) { toast('QR code is still loading', 'warn'); return; }
     approvePair(qrCurrent.session, qrCurrent.token, {
@@ -246,7 +260,13 @@ app.addEventListener('click', (e) => {
       .catch((err) => toast(err.message, 'error'));
     return;
   }
-  if (a === 'auth-back') { e.preventDefault(); act.backToLogin(); return; }
+  if (a === 'auth-back') {
+    e.preventDefault();
+    qrStop?.(); qrStop = null;
+    codeStop?.(); codeStop = null;
+    act.backToLogin();
+    return;
+  }
   if (a === 'resend-otp') {
     const button = el;
     button.disabled = true;
@@ -313,6 +333,33 @@ app.addEventListener('submit', async (e) => {
   const form = e.target.dataset.form;
   if (form === 'login') {
     act.setStage('email');
+  } else if (form === 'pair-code') {
+    const code = document.getElementById('pair-code')?.value.trim();
+    const status = document.getElementById('pair-code-status');
+    if (!code || code.replace(/\D/g, '').length !== 8) {
+      if (status) status.textContent = 'Enter the 8-digit code shown on your phone.';
+      return;
+    }
+    try {
+      const claimed = await claimPairCode(code);
+      if (status) status.textContent = 'Code found — tap Approve on your phone…';
+      codeStop?.();
+      codeStop = watchPair(claimed.session, {
+        onUpdate(info) {
+          if (status && info.status === 'expired') status.textContent = 'Code expired — show a new code on your phone.';
+        },
+        onError(err) {
+          if (status) status.textContent = err?.message || 'Pairing server unavailable';
+        },
+        onApproved(peer) {
+          codeStop = null;
+          act.linkFromPhone(peer);
+          toast('MeshLink phone linked successfully', 'success');
+        },
+      });
+    } catch (err) {
+      if (status) status.textContent = err?.message || 'Invalid or expired code';
+    }
   } else if (form === 'verify-email') {
     const email = document.getElementById('verify-email')?.value.trim();
     const button = document.getElementById('send-code');
