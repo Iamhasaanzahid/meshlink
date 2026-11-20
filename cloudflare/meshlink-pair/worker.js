@@ -436,7 +436,7 @@ export class PairSessions extends DurableObject {
         );
         if (relay !== 'ok') {
           await this.state.storage.put('verifyMeta', meta);
-          return json({ error: `Could not send verification email (${relay})` }, 502);
+          return json({ error: 'Could not send verification email' }, 502);
         }
       }
     }
