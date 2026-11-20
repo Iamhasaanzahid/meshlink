@@ -34,6 +34,29 @@ function notFound() {
   }));
 }
 
+// Cloudflare Pages adds a wildcard CORS header to static assets by default.
+// This app only calls same-origin APIs, so there is no reason to let any other
+// origin read its files. Strip CORS from static responses (API responses keep
+// their own strict, origin-echoing CORS policy).
+function noStaticCors(response) {
+  const headers = new Headers(response.headers);
+  for (const name of [
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials',
+    'Access-Control-Allow-Methods',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Expose-Headers',
+    'Access-Control-Max-Age',
+  ]) {
+    headers.delete(name);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -62,6 +85,6 @@ export default {
       path.startsWith('/assets/');
     if (!allowed) return notFound();
 
-    return env.ASSETS.fetch(request);
+    return noStaticCors(await env.ASSETS.fetch(request));
   },
 };
