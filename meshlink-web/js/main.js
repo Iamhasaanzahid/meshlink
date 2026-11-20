@@ -18,6 +18,7 @@ import { initRealtime, onRemote } from './realtime.js';
 import { initLocalTransport } from './transport/localTransport.js';
 import { openCall, closeCall } from './media/call.js';
 import { startQrLogin, renderQr, approvePair, claimPairCode, watchPair } from './pairing.js';
+import { initBridge } from './bridge.js?v=8';
 
 const app = document.getElementById('app');
 let profilePhoto = '';
@@ -454,6 +455,32 @@ onRemote((event) => {
 });
 
 render();
+
+// Phone → web bridge: a MeshLink phone publishes text to the same free relay.
+initBridge(getState().auth?.meshId, ({ from, id, body, name }) => {
+  const chat = getState().chats.find((c) => c.type === 'dm' && c.peerId === from)
+    || act.startDm(from);
+  if (!chat) return;
+  act.receiveMessage({
+    id,
+    chatId: chat.id,
+    senderId: 'u_peer',
+    createdAt: Date.now(),
+    kind: 'text',
+    text: body,
+    media: null,
+    link: null,
+    replyTo: null,
+    reactions: {},
+    starredBy: [],
+    deletedFor: [],
+    deletedForEveryone: false,
+    status: 'sent',
+    transport: 'global',
+  }, { remote: true });
+  render();
+});
+
 window.addEventListener('pointerdown', () => { lastActivity = Date.now(); }, { passive: true });
 setInterval(() => {
   if (getState().auth.locked) return;

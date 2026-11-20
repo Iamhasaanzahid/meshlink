@@ -1,6 +1,7 @@
 import { seedState, demoProfile } from './seed.js';
 import { uid, previewOf, linkPreviewFor, extractUrl, fmtDuration, generateMeshId } from './utils.js';
 import { sendRemote } from './realtime.js';
+import { sendBridge } from './bridge.js';
 import { netState, setNetMode, onNetChange } from './transport/connectivity.js';
 import { encryptState, decryptState, isLocked, hasPin, setPin, verifyPin, clearPin, clearSessionPassphrase, setSessionPassphrase, devicePassphrase } from './security.js';
 
@@ -503,6 +504,13 @@ export const act = {
     state.ui.editingId = null;
     commit();
     sendRemote({ type: 'message:new', message });
+    if (chat.type === 'dm' && /^\d{10}$/.test(chat.peerId) && kind === 'text') {
+      sendBridge(chat.peerId, {
+        id: message.id,
+        body: value,
+        name: state.user?.name || 'MeshLink user',
+      });
+    }
     if (status === 'sent') scheduleTicks(message.id);
     if (status === 'queued') {
       window.dispatchEvent(new CustomEvent('meshlink:queued', { detail: { message } }));
