@@ -1,4 +1,4 @@
-/* Pak Link theme boot: runs before the stylesheet to avoid a flash of the
+/* T LINK theme boot: runs before the stylesheet to avoid a flash of the
  * wrong theme. Kept external (not inline) so the strict `script-src 'self'`
  * Content-Security-Policy still applies. Default is the original dark theme. */
 (function () {

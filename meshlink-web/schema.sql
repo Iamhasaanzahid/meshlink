@@ -1,4 +1,4 @@
--- Pak Link reference schema (optional server-side persistence).
+-- T LINK reference schema (optional server-side persistence).
 -- The demo stores everything in browser localStorage; this schema documents
 -- the same entities for a SQLite/Postgres-backed deployment.
 

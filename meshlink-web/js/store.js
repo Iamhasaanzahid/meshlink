@@ -22,7 +22,7 @@ function applyTheme(theme, persist = true) {
 }
 
 // Preview seed data shown before a real phone is linked. It must disappear
-// once the browser signs in as an actual Pak Link identity.
+// once the browser signs in as an actual T LINK identity.
 const DEMO_CONTACTS = new Set([
   'u_ayesha', 'u_hamza', 'u_sara', 'u_bilal', 'u_zainab', 'u_daniyal',
 ]);
@@ -55,7 +55,7 @@ export async function initStore() {
     const raw = localStorage.getItem(KEY);
     if (raw) loaded = migrate(await decryptState(raw));
   } catch (err) {
-    console.warn('Pak Link: encrypted vault could not be opened', err);
+    console.warn('T LINK: encrypted vault could not be opened', err);
   }
   state = loaded || seedState();
   state.auth = { ...state.auth, meshId: state.auth?.meshId || generateMeshId() };
@@ -63,7 +63,7 @@ export async function initStore() {
   delete state.user?.phone;
   delete state.user?.email;
   // Older linked sessions kept the preview chats. Clean them once.
-  if (state.auth.linked === undefined && state.user?.about === 'Linked from Pak Link mobile') {
+  if (state.auth.linked === undefined && state.user?.about === 'Linked from T LINK mobile') {
     clearSeedData();
   }
   state.auth.locked = isLocked();
@@ -133,7 +133,7 @@ export async function persistNow() {
     if (seq !== persistSeq) return;
     localStorage.setItem(KEY, raw);
   } catch (err) {
-    console.warn('Pak Link: could not encrypt local vault', err);
+    console.warn('T LINK: could not encrypt local vault', err);
   }
 }
 
@@ -321,8 +321,8 @@ export const act = {
     state.auth.linked = true;
     state.user = {
       ...(state.user || demoProfile),
-      name: String(peer.name || '').trim() || 'Pak Link phone',
-      about: String(peer.about || '').trim() || 'Linked from Pak Link mobile',
+      name: String(peer.name || '').trim() || 'T LINK phone',
+      about: String(peer.about || '').trim() || 'Linked from T LINK mobile',
       meshId,
       online: true,
       lastSeen: Date.now(),
@@ -397,8 +397,8 @@ export const act = {
     const existing = state.user || demoProfile;
     state.user = {
       ...existing,
-      name: String(name || '').trim() || 'Pak Link user',
-      about: String(about || '').trim() || 'Hey there! I am using Pak Link.',
+      name: String(name || '').trim() || 'T LINK user',
+      about: String(about || '').trim() || 'Hey there! I am using T LINK.',
       avatar: avatar || '',
       meshId: existing.meshId || state.auth.meshId || generateMeshId(),
       online: true,
@@ -557,7 +557,7 @@ export const act = {
       const bridgeMessage = {
         id: message.id,
         body: value,
-        name: state.user?.name || 'Pak Link user',
+        name: state.user?.name || 'T LINK user',
       };
       sendBridge(chat.peerId, bridgeMessage);
       // Other linked devices (the phone that paired this browser) need a copy
@@ -786,7 +786,7 @@ export const act = {
     const members = Array.from(new Set(['u_me', ...memberIds]));
     const chat = {
       id, type: 'group', peerId: '', name: clean, emoji: emoji || '✨', avatar,
-      about: about || 'A new Pak Link group.',
+      about: about || 'A new T LINK group.',
       pinned: false, muted: false, archived: false, unread: 0, lastAt: Date.now(),
       lastMessage: 'Group created', lastSenderId: 'u_me',
       memberIds: members, adminIds: ['u_me'],
@@ -879,7 +879,7 @@ export const act = {
   },
   exportData() {
     return {
-      app: 'Pak Link Web',
+      app: 'T LINK Web',
       exportedAt: new Date().toISOString(),
       user: state.user,
       contacts: state.contacts,

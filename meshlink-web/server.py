@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pak Link Web demo server.
+"""T LINK Web demo server.
 
 - Flask serves the static app on http://localhost:8000
 - A tiny WebSocket relay (port 8765) mirrors events between browser tabs/devices
@@ -133,7 +133,7 @@ def health():
 
 @app.post("/api/ai/chat")
 def ai_chat():
-    """Proxy to a free local Ollama engine. The UI calls this Pak Link AI."""
+    """Proxy to a free local Ollama engine. The UI calls this T LINK AI."""
     from flask import request, jsonify
     payload = request.get_json(silent=True) or {}
     model = pick_model(payload.get('model'))
@@ -195,7 +195,7 @@ def pair_manual():
     payload = request.get_json(silent=True) or {}
     mesh_id = ''.join(ch for ch in str(payload.get('meshId', '')) if ch.isdigit())[:10]
     if len(mesh_id) != 10:
-        return jsonify({'error': 'A 10-digit Pak Link ID is required'}), 400
+        return jsonify({'error': 'A 10-digit T LINK ID is required'}), 400
     _clean_pairs()
     sid = secrets.token_urlsafe(18)
     token = secrets.token_hex(16)
@@ -207,7 +207,7 @@ def pair_manual():
             "expires": expires,
             "status": "pending",
             "peer": None,
-            "peerName": str(payload.get('name', 'Pak Link phone'))[:48],
+            "peerName": str(payload.get('name', 'T LINK phone'))[:48],
             "peerMeshId": mesh_id,
         }
         _pair_codes[code] = sid
@@ -228,7 +228,7 @@ def pair_claim():
     return jsonify({
         'session': sid,
         'meshId': session.get('peerMeshId', ''),
-        'name': session.get('peerName', 'Pak Link phone'),
+        'name': session.get('peerName', 'T LINK phone'),
     })
 
 
@@ -251,7 +251,7 @@ def pair_status():
 
 @app.post("/api/pair/approve")
 def pair_approve():
-    """Called by the Pak Link phone after scanning a valid QR code."""
+    """Called by the T LINK phone after scanning a valid QR code."""
     if not _rate_ok(request.remote_addr or "unknown"):
         return jsonify({"error": "too many attempts"}), 429
     payload = request.get_json(silent=True) or {}
@@ -272,14 +272,14 @@ def pair_approve():
         session["status"] = "approved"
         session["peer"] = {
             "meshId": mesh_id,
-            "name": name or "Pak Link phone",
-            "about": "Linked from Pak Link mobile",
+            "name": name or "T LINK phone",
+            "about": "Linked from T LINK mobile",
         }
     return jsonify({"status": "approved"})
 
 
 # ------------------------------------------------------ email OTP verification
-# The app-generated 10-digit Pak Link ID is the identity. Email only secures it:
+# The app-generated 10-digit T LINK ID is the identity. Email only secures it:
 # it is never a login name and never a phone number. Only HMAC hashes of codes
 # are kept (never the plaintext), with a 5-minute expiry and 5 confirm attempts.
 OTP_TTL = 300
@@ -328,16 +328,16 @@ def _otp_hash(mesh_id: str, email: str, code: str) -> str:
 
 def _send_verification_email(email: str, code: str) -> bool:
     """Send via Gmail SMTP when configured, else Resend, else demo mode."""
-    subject = 'Pak Link verification code'
+    subject = 'T LINK verification code'
     text = (
-        f'Your Pak Link verification code is {code}. It expires in 5 minutes.\n\n'
+        f'Your T LINK verification code is {code}. It expires in 5 minutes.\n\n'
         'If you did not request this, you can ignore this email.'
     )
 
     if SMTP_USER and SMTP_PASSWORD:
         message = EmailMessage()
         message['Subject'] = subject
-        message['From'] = f'Pak Link <{SMTP_USER}>'
+        message['From'] = f'T LINK <{SMTP_USER}>'
         message['To'] = email
         message.set_content(text)
         try:
@@ -375,7 +375,7 @@ def verify_send():
     email = str(payload.get('email', '')).strip().lower()[:254]
     mesh_id = ''.join(ch for ch in str(payload.get('meshId', '')) if ch.isdigit())[:10]
     if not EMAIL_RE.match(email) or len(mesh_id) != 10:
-        return jsonify({'error': 'A valid email and 10-digit Pak Link ID are required'}), 400
+        return jsonify({'error': 'A valid email and 10-digit T LINK ID are required'}), 400
 
     with _verify_lock:
         _clean_verify()
@@ -408,7 +408,7 @@ def verify_confirm():
     mesh_id = ''.join(ch for ch in str(payload.get('meshId', '')) if ch.isdigit())[:10]
     code = ''.join(ch for ch in str(payload.get('code', '')) if ch.isdigit())[:6]
     if not EMAIL_RE.match(email) or len(mesh_id) != 10 or len(code) != 6:
-        return jsonify({'error': 'A valid email, Pak Link ID and 6-digit code are required'}), 400
+        return jsonify({'error': 'A valid email, T LINK ID and 6-digit code are required'}), 400
 
     key = f'{mesh_id}|{email}'
     with _verify_lock:
@@ -504,6 +504,6 @@ def start_relay():
 
 if __name__ == "__main__":
     threading.Thread(target=start_relay, daemon=True).start()
-    print(f"Pak Link app     : http://localhost:{HTTP_PORT}")
-    print(f"Pak Link relay   : ws://localhost:{WS_PORT}")
+    print(f"T LINK app     : http://localhost:{HTTP_PORT}")
+    print(f"T LINK relay   : ws://localhost:{WS_PORT}")
     app.run(host="0.0.0.0", port=HTTP_PORT, debug=False)

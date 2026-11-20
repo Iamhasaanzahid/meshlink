@@ -1,4 +1,4 @@
-# Pak Link Web
+# T LINK Web
 
 Hybrid messenger + 3-tier calling demo. Works like a normal chat app while online, then falls back to a local hotspot/LAN mesh, and finally to a store-and-forward outbox when nothing is reachable.
 
@@ -15,24 +15,24 @@ python3 server.py
 - App: http://localhost:8000
 - WebSocket relay: `ws://localhost:8765`
 
-Open the app in two tabs (or two devices on the same LAN) to see the relay mirror messages. The normal flow generates a 10-digit Pak Link ID, asks for an email, and confirms a 6-digit code (`123456` in local demo mode). The demo account and QR login buttons still work without email.
+Open the app in two tabs (or two devices on the same LAN) to see the relay mirror messages. The normal flow generates a 10-digit T LINK ID, asks for an email, and confirms a 6-digit code (`123456` in local demo mode). The demo account and QR login buttons still work without email.
 
 ### Offline AI (optional)
 
-Install [Ollama](https://ollama.com) and pull any local model (for example `ollama pull qwen3:1.7b`). The server detects it automatically at `http://127.0.0.1:11434`. Pak Link maps its model tiers to available local models:
+Install [Ollama](https://ollama.com) and pull any local model (for example `ollama pull qwen3:1.7b`). The server detects it automatically at `http://127.0.0.1:11434`. T LINK maps its model tiers to available local models:
 
 - `MESHLINK_AI_FAST` (default `qwen3:1.7b`)
 - `MESHLINK_AI_BALANCED` (default `qwen3:4b`)
 - `MESHLINK_AI_DEEP` (default `qwen3:4b`)
 - `MESHLINK_AI_URL` to point at another local engine
 
-If no engine is running, Pak Link AI switches to its built-in offline responder. The product name is always **Pak Link AI**; the Ollama adapter lives only in `server.py` and `js/views/ai.js`.
+If no engine is running, T LINK AI switches to its built-in offline responder. The product name is always **T LINK AI**; the Ollama adapter lives only in `server.py` and `js/views/ai.js`.
 
 ## What is included
 
-- **Identity** — the app generates a private 10-digit Pak Link ID. No phone number is ever requested. Email is optional and only used to verify the ID with a 6-digit OTP — never as a login or phone number. Only an HMAC hash of the code is stored.
+- **Identity** — the app generates a private 10-digit T LINK ID. No phone number is ever requested. Email is optional and only used to verify the ID with a 6-digit OTP — never as a login or phone number. Only an HMAC hash of the code is stored.
 - **Security** — AES-256-GCM encrypted local vault, PBKDF2-SHA256 key derivation, optional 6-digit app PIN, 5-minute auto-lock, lock screen, encrypted cross-tab sync.
-- **Pak Link AI** — free offline assistant branded as Pak Link AI. Uses a local Ollama engine when present, with a built-in offline responder as fallback.
+- **T LINK AI** — free offline assistant branded as T LINK AI. Uses a local Ollama engine when present, with a built-in offline responder as fallback.
 - **Chats** — search, pinned chats, unread badges, previews, groups, dark/light themes, wallpaper, message replies, reactions, stars, forwarding, deletion, attachments, image/video/audio/doc media, emoji/sticker/GIF pickers.
 - **Delivery states** — `queued` → `mesh` → `sent` → `delivered` → `read`, derived from the active transport.
 - **Groups** — create, member list, admin labels, group info panel.
@@ -56,7 +56,7 @@ js/
   seed.js          demo users/chats/messages/statuses/calls
   chats.js         sidebar, chat list, conversation UI, composer
   ui.js            icons, avatars, modals, menus, toasts, lightbox
-  utils.js         formatting, media helpers, notifications, sound, Pak Link ID
+  utils.js         formatting, media helpers, notifications, sound, T LINK ID
   security.js      AES-GCM vault, PBKDF2, PIN lock, session handling
   realtime.js      WebSocket + BroadcastChannel relay
   transport/
@@ -70,7 +70,7 @@ js/
     calls.js       call history + new call
     nearby.js      nearby peers + simulator
     settings.js    settings page + editors
-    ai.js          Pak Link AI chat + local engine adapter
+    ai.js          T LINK AI chat + local engine adapter
     collections.js starred + archived
 server.py          static server, demo WS relay, local AI proxy
 schema.sql         reference schema for optional server persistence

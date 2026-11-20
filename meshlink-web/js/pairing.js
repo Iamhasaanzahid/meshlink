@@ -1,7 +1,7 @@
 /* Short-lived QR link login, WhatsApp-style.
  *
- * The browser opens a 30-second pairing window on the Pak Link server and
- * shows a QR containing a one-time token. The Pak Link phone scans it and
+ * The browser opens a 30-second pairing window on the T LINK server and
+ * shows a QR containing a one-time token. The T LINK phone scans it and
  * approves the link with /api/pair/approve. The browser polls the status and
  * signs in as the linked phone identity — no phone number, no password.
  */
@@ -39,7 +39,7 @@ export function renderQr(element, text) {
   }
   qr.addData(text);
   qr.make();
-  element.innerHTML = qr.createSvgTag(4, 2, 'Pak Link pairing QR');
+  element.innerHTML = qr.createSvgTag(4, 2, 'T LINK pairing QR');
   const svg = element.querySelector('svg');
   if (svg) {
     svg.setAttribute('width', '100%');
