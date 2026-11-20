@@ -335,7 +335,6 @@ export class PairSessions extends DurableObject {
 
   // ------------------------------------------------------ email verification
   handleVerify(request, url, path) {
-    if (path === '/api/verify/version') return json({ version: 'relay-2' });
     if (path === '/api/verify/send' && request.method === 'POST') return this.verifySend(request);
     if (path === '/api/verify/confirm' && request.method === 'POST') return this.verifyConfirm(request);
     if (path === '/api/verify/status' && request.method === 'GET') return this.verifyStatus(url);
@@ -424,7 +423,7 @@ export class PairSessions extends DurableObject {
           );
           if (relay !== 'ok') {
             await this.state.storage.put('verifyMeta', meta);
-            return json({ error: `Could not send verification email (${relay})` }, 502);
+            return json({ error: 'Could not send verification email' }, 502);
           }
         }
       } catch {
@@ -514,6 +513,12 @@ export default {
   async fetch(request, env) {
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
       const id = env.PAIR_SESSIONS.idFromName('meshlink-relay');
+      return env.PAIR_SESSIONS.get(id).fetch(request);
+    }
+    const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/')) {
+      const name = path.startsWith('/api/bridge/') ? 'meshlink-relay' : 'meshlink-web';
+      const id = env.PAIR_SESSIONS.idFromName(name);
       return env.PAIR_SESSIONS.get(id).fetch(request);
     }
     return new Response('MeshLink pairing + relay Worker', { status: 200 });

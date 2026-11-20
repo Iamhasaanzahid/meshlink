@@ -62,9 +62,21 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Verification goes through the dedicated Worker so email-relay fixes are
+    // live immediately without waiting for a stale Durable Object binding.
+    if (path.startsWith('/api/verify/')) {
+      const upstream = `https://meshlink-pair.mhzaly.workers.dev${url.pathname}${url.search}`;
+      const response = await fetch(upstream, {
+        method: request.method,
+        headers: request.headers,
+        body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+        redirect: 'manual',
+      });
+      return secure(response);
+    }
+
     if (
       path.startsWith('/api/pair/') ||
-      path.startsWith('/api/verify/') ||
       path.startsWith('/api/bridge/') ||
       path === '/ws'
     ) {
