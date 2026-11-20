@@ -1,4 +1,4 @@
-/* Small, dependency-free helpers shared across MeshLink. */
+/* Small, dependency-free helpers shared across Pak Link. */
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -9,7 +9,7 @@ export const uid = (prefix = 'id') => {
   return `${prefix}_${Date.now().toString(36)}${counter.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 };
 
-/* MeshLink assigns a private 10-digit identity. Email is only used to verify it,
+/* Pak Link assigns a private 10-digit identity. Email is only used to verify it,
  * never as a login name or phone number. */
 export function generateMeshId() {
   const bytes = new Uint8Array(10);
@@ -303,5 +303,5 @@ export const makeAvatarArt = (label = 'M', from = '#8b5cf6', to = '#ec4899') => 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 
-export const downloadJson = (data, filename = 'meshlink-export.json') =>
+export const downloadJson = (data, filename = 'paklink-export.json') =>
   downloadText(filename, JSON.stringify(data, null, 2));

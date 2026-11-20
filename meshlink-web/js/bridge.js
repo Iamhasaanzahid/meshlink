@@ -3,7 +3,7 @@
  * Preferred transport: authenticated Cloudflare HTTPS relay. The pairing
  * secret proves the device on every call, so no public MQTT topic is exposed.
  * Fallback: public MQTT for older sessions that never paired with a phone.
- * The message body is always AES-GCM sealed with a MeshLink-derived key. */
+ * The message body is always AES-GCM sealed with a Pak Link-derived key. */
 import { MqttLite } from './vendor/mqtt-lite.js?v=13';
 
 const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
@@ -160,7 +160,7 @@ export function initBridge(meshId, onIncoming, bridgeSecret = '') {
       from,
       id: String(data.i || `${from}-${Date.now()}`),
       body: String(data.b),
-      name: String(data.n || 'MeshLink phone'),
+      name: String(data.n || 'Pak Link phone'),
       self: data.s === true || data.s === 1 || data.s === '1',
       to: String(data.d || '').replace(/\D/g, '').slice(0, 10),
       origin: String(data.o || ''),
@@ -198,14 +198,14 @@ async function publishWire(to, inner, keyPeer) {
   return transport.publish(to, JSON.stringify({ u: me, e }));
 }
 
-/** Called by the store when a text message is sent to a 10-digit MeshLink ID. */
+/** Called by the store when a text message is sent to a 10-digit Pak Link ID. */
 export function sendBridge(to, message) {
   const dest = String(to || '').replace(/\D/g, '').slice(0, 10);
   if (!dest || !message) return Promise.resolve(false);
   return publishWire(dest, {
     i: message.id || `m-${Date.now()}`,
     b: String(message.body || '').slice(0, 4000),
-    n: String(message.name || 'MeshLink user').slice(0, 48),
+    n: String(message.name || 'Pak Link user').slice(0, 48),
     u: me,
   }, dest);
 }
@@ -217,7 +217,7 @@ export function sendBridgeSelf(peer, message) {
   return publishWire(me, {
     i: message.id || `m-${Date.now()}`,
     b: String(message.body || '').slice(0, 4000),
-    n: String(message.name || 'MeshLink user').slice(0, 48),
+    n: String(message.name || 'Pak Link user').slice(0, 48),
     u: me,
     d: to,
     s: 1,

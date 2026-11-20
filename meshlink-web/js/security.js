@@ -1,4 +1,4 @@
-/* MeshLink device security.
+/* Pak Link device security.
    Local state is encrypted with AES-256-GCM. A random device key is used by default;
    when an app PIN is enabled, the encryption key is derived from that PIN with PBKDF2. */
 const DEVICE_KEY = 'meshlink-device-key';

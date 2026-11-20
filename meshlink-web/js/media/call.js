@@ -22,7 +22,7 @@ export function openCall(peerId, type = 'voice') {
 }
 
 function offlineFallback(peer) {
-  openModal({ title: 'No live link available', subtitle: 'Completely offline mode', body: `<p style="margin:0 0 12px;color:var(--text-2);font-size:13px;line-height:1.6">You cannot start a live call without internet or a nearby LAN/hotspot peer. Instead, MeshLink can store a voice note in the outbox and relay it as soon as any device gets connectivity.</p><div class="auth-note">${icon('clock')} Messages are kept with a 24h TTL and deduplicated on sync.</div>`, footer: `<button class="btn sm" data-close>Cancel</button><button class="btn sm primary" id="off-voice">${icon('mic','sm')} Send offline voice note</button>`, onMount: (el, close) => { el.querySelector('#off-voice').onclick = () => { close(); sendOfflineVoice(peer.id); }; } });
+  openModal({ title: 'No live link available', subtitle: 'Completely offline mode', body: `<p style="margin:0 0 12px;color:var(--text-2);font-size:13px;line-height:1.6">You cannot start a live call without internet or a nearby LAN/hotspot peer. Instead, Pak Link can store a voice note in the outbox and relay it as soon as any device gets connectivity.</p><div class="auth-note">${icon('clock')} Messages are kept with a 24h TTL and deduplicated on sync.</div>`, footer: `<button class="btn sm" data-close>Cancel</button><button class="btn sm primary" id="off-voice">${icon('mic','sm')} Send offline voice note</button>`, onMount: (el, close) => { el.querySelector('#off-voice').onclick = () => { close(); sendOfflineVoice(peer.id); }; } });
 }
 
 export function sendOfflineVoice(peerId) {
