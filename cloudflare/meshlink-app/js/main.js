@@ -18,7 +18,7 @@ import { initRealtime, onRemote } from './realtime.js';
 import { initLocalTransport } from './transport/localTransport.js';
 import { openCall, closeCall } from './media/call.js';
 import { startQrLogin, renderQr, approvePair, claimPairCode, watchPair } from './pairing.js';
-import { initBridge } from './bridge.js?v=10';
+import { initBridge } from './bridge.js?v=11';
 
 const app = document.getElementById('app');
 let profilePhoto = '';

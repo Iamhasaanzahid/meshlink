@@ -1,7 +1,7 @@
 import { seedState, demoProfile } from './seed.js';
 import { uid, previewOf, linkPreviewFor, extractUrl, fmtDuration, generateMeshId } from './utils.js';
 import { sendRemote } from './realtime.js';
-import { sendBridge, sendBridgeSelf } from './bridge.js?v=10';
+import { sendBridge, sendBridgeSelf } from './bridge.js?v=11';
 import { netState, setNetMode, onNetChange } from './transport/connectivity.js';
 import { encryptState, decryptState, isLocked, hasPin, setPin, verifyPin, clearPin, clearSessionPassphrase, setSessionPassphrase, devicePassphrase } from './security.js';
 
