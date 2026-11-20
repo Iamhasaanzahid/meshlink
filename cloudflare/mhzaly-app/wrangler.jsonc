@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mhzaly-app",
+  "compatibility_date": "2026-11-19",
+  "pages_build_output_dir": ".",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PAIR_SESSIONS",
+        "class_name": "PairSessions",
+        "script_name": "meshlink-pair"
+      }
+    ]
+  }
+}
