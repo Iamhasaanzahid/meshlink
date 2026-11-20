@@ -1,11 +1,33 @@
 import { seedState, demoProfile } from './seed.js';
 import { uid, previewOf, linkPreviewFor, extractUrl, fmtDuration, generateMeshId } from './utils.js';
 import { sendRemote } from './realtime.js';
-import { sendBridge, sendBridgeSelf } from './bridge.js?v=11';
+import { sendBridge, sendBridgeSelf } from './bridge.js?v=13';
 import { netState, setNetMode, onNetChange } from './transport/connectivity.js';
 import { encryptState, decryptState, isLocked, hasPin, setPin, verifyPin, clearPin, clearSessionPassphrase, setSessionPassphrase, devicePassphrase } from './security.js';
 
 export const KEY = 'meshlink-web-v1';
+
+// Preview seed data shown before a real phone is linked. It must disappear
+// once the browser signs in as an actual MeshLink identity.
+const DEMO_CONTACTS = new Set([
+  'u_ayesha', 'u_hamza', 'u_sara', 'u_bilal', 'u_zainab', 'u_daniyal',
+]);
+const DEMO_CHATS = new Set([
+  'c_ayesha', 'c_hamza', 'c_crew', 'c_sara', 'c_zainab', 'c_hikers',
+  'c_bilal', 'c_daniyal',
+]);
+
+function clearSeedData() {
+  state.contacts = (state.contacts || []).filter((c) => !DEMO_CONTACTS.has(c.id));
+  state.chats = (state.chats || []).filter((c) => !DEMO_CHATS.has(c.id));
+  state.messages = (state.messages || []).filter(
+    (m) => !DEMO_CHATS.has(m.chatId) && !DEMO_CONTACTS.has(m.senderId),
+  );
+  state.statuses = [];
+  state.calls = [];
+  state.ui.activeChatId = null;
+  state.auth.linked = true;
+}
 
 let state = null;
 const listeners = new Set();
@@ -26,6 +48,10 @@ export async function initStore() {
   if (state.user && !state.user.meshId) state.user.meshId = state.auth.meshId;
   delete state.user?.phone;
   delete state.user?.email;
+  // Older linked sessions kept the preview chats. Clean them once.
+  if (state.auth.linked === undefined && state.user?.about === 'Linked from MeshLink mobile') {
+    clearSeedData();
+  }
   state.auth.locked = isLocked();
   delete state.auth.otp;
   delete state.auth.phone;
@@ -272,6 +298,8 @@ export const act = {
   linkFromPhone(peer = {}) {
     const meshId = String(peer.meshId || '').replace(/\D/g, '').slice(0, 10) ||
       state.auth.meshId || generateMeshId();
+    if (!state.auth.linked) clearSeedData();
+    state.auth.linked = true;
     state.user = {
       ...(state.user || demoProfile),
       name: String(peer.name || '').trim() || 'MeshLink phone',
@@ -283,6 +311,7 @@ export const act = {
     delete state.user.phone;
     delete state.user.email;
     state.auth.meshId = meshId;
+    state.auth.bridgeSecret = String(peer.bridgeSecret || '').trim().toLowerCase();
     state.auth.stage = 'ready';
     state.auth.verified = true;
     state.auth.verifiedEmail = '';

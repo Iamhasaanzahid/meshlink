@@ -96,4 +96,21 @@ export class MqttLite {
     this.socket.send(packet(0x30, [...utf8(topic), ...new TextEncoder().encode(text)]));
     return true;
   }
+
+  /** Stops auto-reconnect so a newer transport can take over cleanly. */
+  stop() {
+    this.connected = false;
+    clearInterval(this.timer);
+    this.timer = null;
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.onmessage = null;
+      if (socket.readyState === 1 || socket.readyState === 0) {
+        try { socket.close(); } catch { /* already gone */ }
+      }
+    }
+  }
 }

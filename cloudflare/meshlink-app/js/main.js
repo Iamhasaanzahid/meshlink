@@ -17,8 +17,8 @@ import { netState, onNetChange } from './transport/connectivity.js';
 import { initRealtime, onRemote } from './realtime.js';
 import { initLocalTransport } from './transport/localTransport.js';
 import { openCall, closeCall } from './media/call.js';
-import { startQrLogin, renderQr, approvePair, claimPairCode, watchPair } from './pairing.js';
-import { initBridge } from './bridge.js?v=11';
+import { startQrLogin, renderQr, approvePair, claimPairCode, watchPair } from './pairing.js?v=13';
+import { initBridge } from './bridge.js?v=13';
 
 const app = document.getElementById('app');
 let profilePhoto = '';
@@ -456,8 +456,9 @@ onRemote((event) => {
 
 render();
 
-// Phone → web bridge: a MeshLink phone publishes text to the same free relay.
-initBridge(getState().auth?.meshId, ({ from, id, body, name, self, to, origin }) => {
+// Phone → web bridge: authenticated Cloudflare relay first, public MQTT only
+// as a compatibility fallback for sessions that never paired with a phone.
+function bridgeIncoming({ from, id, body, name, self, to, origin }) {
   const me = getState().auth?.meshId;
   if (self) {
     // A linked Android device sent this message. Show it as our own outgoing
@@ -511,6 +512,24 @@ initBridge(getState().auth?.meshId, ({ from, id, body, name, self, to, origin })
     transport: 'global',
   }, { remote: true });
   render();
+}
+
+let activeBridgeKey = '';
+function refreshBridge() {
+  const s = getState();
+  const key = `${s.auth?.meshId || ''}|${s.auth?.bridgeSecret || ''}`;
+  if (key === activeBridgeKey) return;
+  activeBridgeKey = key;
+  initBridge(s.auth?.meshId, bridgeIncoming, s.auth?.bridgeSecret || '');
+}
+refreshBridge();
+
+// Pairing can happen while the app is already open. Restart the bridge as soon
+// as the long-lived secret arrives so the private relay takes over from MQTT.
+subscribe(() => {
+  const s = getState();
+  const key = `${s.auth?.meshId || ''}|${s.auth?.bridgeSecret || ''}`;
+  if (key !== activeBridgeKey) refreshBridge();
 });
 
 window.addEventListener('pointerdown', () => { lastActivity = Date.now(); }, { passive: true });

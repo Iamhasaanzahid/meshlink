@@ -42,6 +42,7 @@ export default {
     if (
       path.startsWith('/api/pair/') ||
       path.startsWith('/api/verify/') ||
+      path.startsWith('/api/bridge/') ||
       path === '/ws'
     ) {
       const id = env.PAIR_SESSIONS.idFromName('meshlink-web');

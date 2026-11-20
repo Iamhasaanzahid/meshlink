@@ -68,7 +68,7 @@ export function startQrLogin({ onUpdate, onApproved, onError } = {}) {
       if (stopped) return;
       if (data.status === 'approved') {
         clearTimers();
-        onApproved?.(data.peer || {});
+        onApproved?.({ ...(data.peer || {}), bridgeSecret: data.bridgeSecret || '' });
         return;
       }
       if (data.status === 'expired') emit({ status: 'expired' });
@@ -139,7 +139,7 @@ export function watchPair(session, { onUpdate, onApproved, onError } = {}) {
       if (stopped) return;
       if (data.status === 'approved') {
         stop();
-        onApproved?.(data.peer || {});
+        onApproved?.({ ...(data.peer || {}), bridgeSecret: data.bridgeSecret || '' });
         return;
       }
       if (data.status === 'expired') {

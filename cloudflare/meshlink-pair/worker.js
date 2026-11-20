@@ -108,6 +108,7 @@ export class PairSessions extends DurableObject {
     }
     const url = new URL(request.url);
     const path = url.pathname;
+    if (path.startsWith('/api/bridge/')) return this.handleBridge(request, path);
     if (path.startsWith('/api/verify/')) return this.handleVerify(request, url, path);
     const sessions = (await this.state.storage.get('sessions')) || {};
     const codes = (await this.state.storage.get('codes')) || {};
@@ -181,6 +182,7 @@ export class PairSessions extends DurableObject {
         status: s.status,
         peer: s.peer,
         claimed: !!(claimed || s.claimed),
+        bridgeSecret: s.status === 'approved' ? (s.bridgeSecret || '') : '',
         expires: s.expires / 1000,
       });
     }
@@ -199,8 +201,92 @@ export class PairSessions extends DurableObject {
         name: String(payload.name || 'MeshLink phone').slice(0, 48),
         about: 'Linked from MeshLink mobile',
       };
+      const secret = String(payload.bridgeSecret || '');
+      if (/^[0-9a-f]{32,64}$/i.test(secret)) {
+        s.bridgeSecret = secret;
+        const bridge = await this.bridgeState();
+        bridge.secrets[s.peer.meshId] = secret;
+        await this.state.storage.put('bridge', bridge);
+      }
       await this.state.storage.put('sessions', sessions);
       return json({ status: 'approved' });
+    }
+
+    return json({ error: 'not found' }, 404);
+  }
+
+  // ------------------------------------------- authenticated Cloudflare relay
+  async bridgeState() {
+    const bridge = (await this.state.storage.get('bridge')) || {};
+    bridge.secrets = bridge.secrets || {};
+    bridge.messages = bridge.messages || [];
+    bridge.seq = bridge.seq || 0;
+    return bridge;
+  }
+
+  /**
+   * Private HTTPS bridge. Every device proves the pairing secret on each call,
+   * so the relay is authenticated and no public MQTT topic is needed. Payloads
+   * stay opaque to the worker: the app layer already encrypts them.
+   */
+  async handleBridge(request, path) {
+    let payload = {};
+    try { payload = await request.json(); } catch { /* noop */ }
+    const meshId = normalizeMeshId(payload.meshId);
+    const secret = String(payload.secret || '');
+
+    if (path === '/api/bridge/register' && request.method === 'POST') {
+      if (!meshId || !/^[0-9a-f]{32,64}$/i.test(secret)) {
+        return json({ error: 'valid mesh ID and secret required' }, 400);
+      }
+      const bridge = await this.bridgeState();
+      const known = bridge.secrets[meshId] || '';
+      if (known && !constantTimeEqual(known, secret)) {
+        return json({ error: 'secret already registered for this ID' }, 409);
+      }
+      bridge.secrets[meshId] = secret;
+      await this.state.storage.put('bridge', bridge);
+      return json({ ok: true });
+    }
+
+    if (!meshId || !secret) return json({ error: 'bridge authentication required' }, 401);
+    let bridge = await this.bridgeState();
+    if (!constantTimeEqual(bridge.secrets[meshId] || '', secret)) {
+      return json({ error: 'unauthorized' }, 403);
+    }
+
+    if (path === '/api/bridge/publish' && request.method === 'POST') {
+      const to = normalizeMeshId(payload.to);
+      const data = String(payload.payload || '').slice(0, 20_000);
+      if (!to || !data) return json({ error: 'recipient and payload required' }, 400);
+      bridge.seq += 1;
+      bridge.messages.push({
+        id: `b${bridge.seq}-${meshId}`,
+        seq: bridge.seq,
+        to,
+        from: meshId,
+        data,
+        expires: Date.now() + 7 * 86_400_000,
+      });
+      if (bridge.messages.length > 5_000) {
+        bridge.messages = bridge.messages.slice(-2_000);
+      }
+      await this.state.storage.put('bridge', bridge);
+      return json({ ok: true, seq: bridge.seq });
+    }
+
+    if (path === '/api/bridge/poll' && request.method === 'POST') {
+      const since = Number(payload.since || 0) || 0;
+      const deadline = Date.now() + 18_000;
+      while (true) {
+        const now = Date.now();
+        bridge.messages = bridge.messages.filter((m) => m.expires > now);
+        const fresh = bridge.messages.filter((m) => m.to === meshId && m.seq > since);
+        if (fresh.length) return json({ ok: true, messages: fresh, seq: bridge.seq, now });
+        if (now >= deadline) return json({ ok: true, messages: [], seq: bridge.seq, now });
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        bridge = await this.bridgeState();
+      }
     }
 
     return json({ error: 'not found' }, 404);

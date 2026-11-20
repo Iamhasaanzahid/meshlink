@@ -1,15 +1,20 @@
 /* Android ↔ web messaging bridge.
- * Both sides use the same free public MQTT relay and a small AES-GCM envelope.
- * The relay only sees `{u, e}`; the message body stays encrypted with a key
- * derived from the two MeshLink IDs, matching Android's OnlineCrypto format. */
-import { MqttLite } from './vendor/mqtt-lite.js?v=11';
+ *
+ * Preferred transport: authenticated Cloudflare HTTPS relay. The pairing
+ * secret proves the device on every call, so no public MQTT topic is exposed.
+ * Fallback: public MQTT for older sessions that never paired with a phone.
+ * The message body is always AES-GCM sealed with a MeshLink-derived key. */
+import { MqttLite } from './vendor/mqtt-lite.js?v=13';
 
 const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
 const PREFIX = 'meshlink/web/';
+const RELAY = '/api/bridge';
 const KEY_SALT = 'meshlink-online-v1';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-let client = null;
+let transport = null;
+let relayClient = null;
+let mqttClient = null;
 let me = '';
 
 function bytesToBase64(bytes) {
@@ -50,21 +55,96 @@ async function open(mine, theirs, value) {
   try {
     const blob = base64ToBytes(value);
     if (blob.length <= 13 || blob[0] !== 1) return '';
-    const iv = blob.slice(1, 13);
-    const body = blob.slice(13);
     const key = await pairKey(mine, theirs);
-    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, body);
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: blob.slice(1, 13) }, key, blob.slice(13),
+    );
     return decoder.decode(plain);
   } catch {
     return '';
   }
 }
 
-export function initBridge(meshId, onIncoming) {
+class RelayTransport {
+  constructor(meshId, secret, onMessage) {
+    this.meshId = meshId;
+    this.secret = secret;
+    this.onMessage = onMessage;
+    this.since = 0;
+    this.connected = false;
+    this.stopped = false;
+  }
+
+  async request(path, extra = {}) {
+    const res = await fetch(`${RELAY}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meshId: this.meshId, secret: this.secret, ...extra }),
+    });
+    if (!res.ok) throw new Error(`relay ${res.status}`);
+    return res.json();
+  }
+
+  connect() {
+    this.connected = true;
+    this.poll();
+  }
+
+  stop() {
+    this.stopped = true;
+    this.connected = false;
+  }
+
+  async poll() {
+    while (!this.stopped) {
+      try {
+        const data = await this.request('/poll', { since: this.since });
+        for (const message of data.messages || []) {
+          this.since = Math.max(this.since, Number(message.seq) || 0);
+          let wire = String(message.data || '');
+          try {
+            const envelope = JSON.parse(wire);
+            if (envelope && typeof envelope.v === 'string' && envelope.t === 'web') {
+              wire = envelope.v;
+            }
+          } catch { /* plain legacy payload */ }
+          if (wire) this.onMessage(wire);
+        }
+        this.connected = true;
+      } catch {
+        this.connected = false;
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      }
+    }
+  }
+
+  async publish(to, text) {
+    try {
+      await this.request('/publish', {
+        to,
+        payload: JSON.stringify({ t: 'web', v: text }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+export function stopBridge() {
+  relayClient?.stop();
+  relayClient = null;
+  mqttClient?.stop();
+  mqttClient = null;
+  transport = null;
+}
+
+export function initBridge(meshId, onIncoming, bridgeSecret = '') {
+  stopBridge();
   me = String(meshId || '').replace(/\D/g, '').slice(0, 10);
   if (!me) return;
-  client = new MqttLite(BROKER, `meshlink-web-${me}-${Date.now()}`, async (topic, text) => {
-    if (!topic.startsWith(PREFIX)) return;
+
+  const handleWire = async (text) => {
     let wire;
     try { wire = JSON.parse(text); } catch { return; }
     const from = String(wire?.u || '').replace(/\D/g, '').slice(0, 10);
@@ -85,35 +165,56 @@ export function initBridge(meshId, onIncoming) {
       to: String(data.d || '').replace(/\D/g, '').slice(0, 10),
       origin: String(data.o || ''),
     });
+  };
+
+  if (/^[0-9a-f]{32,64}$/i.test(String(bridgeSecret))) {
+    relayClient = new RelayTransport(me, String(bridgeSecret), handleWire);
+    transport = relayClient;
+    relayClient.connect();
+    return;
+  }
+
+  const client = new MqttLite(BROKER, `meshlink-web-${me}-${Date.now()}`, (topic, text) => {
+    if (!topic.startsWith(PREFIX)) return;
+    handleWire(text);
   });
+  mqttClient = client;
+  transport = {
+    connected: () => client.connected,
+    publish: (to, text) => client.publish(PREFIX + to, text),
+  };
   client.connect();
   client.subscribe([PREFIX + me]);
 }
 
 export function bridgeConnected() {
-  return !!client?.connected;
+  return !!transport?.connected;
+}
+
+async function publishWire(to, inner, keyPeer) {
+  if (!transport?.connected || !to) return false;
+  const e = await seal(me, keyPeer, JSON.stringify(inner));
+  if (!transport?.connected) return false;
+  return transport.publish(to, JSON.stringify({ u: me, e }));
 }
 
 /** Called by the store when a text message is sent to a 10-digit MeshLink ID. */
-export async function sendBridge(to, message) {
+export function sendBridge(to, message) {
   const dest = String(to || '').replace(/\D/g, '').slice(0, 10);
-  if (!client || !client.connected || !dest || !message) return false;
-  const plain = JSON.stringify({
+  if (!dest || !message) return Promise.resolve(false);
+  return publishWire(dest, {
     i: message.id || `m-${Date.now()}`,
     b: String(message.body || '').slice(0, 4000),
     n: String(message.name || 'MeshLink user').slice(0, 48),
     u: me,
-  });
-  const e = await seal(me, dest, plain);
-  if (!client?.connected) return false;
-  return client.publish(PREFIX + dest, JSON.stringify({ u: me, e }));
+  }, dest);
 }
 
 /** Mirrors a web-sent message to other devices signed in as the same ID. */
-export async function sendBridgeSelf(peer, message) {
+export function sendBridgeSelf(peer, message) {
   const to = String(peer || '').replace(/\D/g, '').slice(0, 10);
-  if (!client || !client.connected || !me || !to || !message) return false;
-  const plain = JSON.stringify({
+  if (!me || !to || !message) return Promise.resolve(false);
+  return publishWire(me, {
     i: message.id || `m-${Date.now()}`,
     b: String(message.body || '').slice(0, 4000),
     n: String(message.name || 'MeshLink user').slice(0, 48),
@@ -121,8 +222,5 @@ export async function sendBridgeSelf(peer, message) {
     d: to,
     s: 1,
     o: 'web',
-  });
-  const e = await seal(me, me, plain);
-  if (!client?.connected) return false;
-  return client.publish(PREFIX + me, JSON.stringify({ u: me, e }));
+  }, me);
 }
