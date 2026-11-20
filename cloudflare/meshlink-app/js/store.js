@@ -6,6 +6,20 @@ import { netState, setNetMode, onNetChange } from './transport/connectivity.js';
 import { encryptState, decryptState, isLocked, hasPin, setPin, verifyPin, clearPin, clearSessionPassphrase, setSessionPassphrase, devicePassphrase } from './security.js';
 
 export const KEY = 'meshlink-web-v1';
+const THEME_KEY = 'meshlink-theme';
+
+// Theme lives in the encrypted vault too, but the tiny pre-paint boot script
+// needs a plain (non-sensitive) copy. Dark remains the default.
+function applyTheme(theme, persist = true) {
+  const next = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', next === 'light' ? '#f7f4ff' : '#0d0818');
+  if (persist) {
+    try { localStorage.setItem(THEME_KEY, next); } catch { /* storage blocked */ }
+  }
+  return next;
+}
 
 // Preview seed data shown before a real phone is linked. It must disappear
 // once the browser signs in as an actual MeshLink identity.
@@ -57,6 +71,7 @@ export async function initStore() {
   delete state.auth.phone;
   delete state.auth.pendingPhone;
   if (!state.settings) state.settings = seedState().settings;
+  applyTheme(state.settings.theme || 'dark');
   if (!state.ui) state.ui = seedState().ui;
   if (!state.ai) state.ai = { model: 'meshlink-mini', messages: [], endpoint: '' };
   setNetMode(state.settings.networkMode || 'auto');
@@ -135,6 +150,11 @@ window.addEventListener('storage', async (e) => {
   } catch { /* ignore malformed or foreign writes */ }
 });
 
+// A theme switch in another tab should show up immediately here too.
+window.addEventListener('storage', (e) => {
+  if (e.key === THEME_KEY) applyTheme(e.newValue || 'dark', false);
+});
+
 // ---------------------------------------------------------------- selectors
 export const contactById = (id) => {
   if (id === 'u_me') return state.user || demoProfile;
@@ -205,8 +225,7 @@ const touch = () => { state = { ...state }; };
 
 export const act = {
   setTheme(theme) {
-    state.settings.theme = theme;
-    document.documentElement.dataset.theme = theme;
+    state.settings.theme = applyTheme(theme);
     commit();
   },
   toggleTheme() {
@@ -423,6 +442,7 @@ export const act = {
     state = seedState();
     state.auth.meshId = generateMeshId();
     state.auth.locked = false;
+    applyTheme(state.settings.theme || 'dark');
     await persistNow();
     notify();
   },

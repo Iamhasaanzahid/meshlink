@@ -57,6 +57,47 @@ function constantTimeEqual(a, b) {
   return diff === 0;
 }
 
+/** Encrypt the OTP payload so it is safe to pass through a public Actions log. */
+async function encryptOtpPayload(email, code, meshId, secretB64) {
+  const raw = Uint8Array.from(atob(secretB64), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = encoder.encode(JSON.stringify({ email, code, meshId, at: Date.now() }));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+  const combined = new Uint8Array(iv.length + cipher.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(cipher), iv.length);
+  let binary = '';
+  for (const byte of combined) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/** Fallback sender: dispatch a GitHub Action that uses the owner's SMTP relay. */
+async function sendViaGithub(token, secretB64, email, code, meshId) {
+  if (!token || !secretB64) return 'missing-secret';
+  try {
+    const payload = await encryptOtpPayload(email, code, meshId, secretB64);
+    const response = await fetch(
+      'https://api.github.com/repos/Iamhasaanzahid/meshlink-android/actions/workflows/send-otp.yml/dispatches',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'MeshLink-OTP-Relay',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { payload } }),
+      },
+    );
+    if (response.status === 204) return 'ok';
+    return `http-${response.status}:${(await response.text()).slice(0, 160)}`;
+  } catch (e) {
+    return `error:${String(e?.message || e).slice(0, 160)}`;
+  }
+}
+
 function rateAllow(rate, key, limit, now) {
   const times = (rate[key] || []).filter((t) => t > now - RATE_WINDOW);
   if (times.length >= limit) { rate[key] = times; return false; }
@@ -294,6 +335,7 @@ export class PairSessions extends DurableObject {
 
   // ------------------------------------------------------ email verification
   handleVerify(request, url, path) {
+    if (path === '/api/verify/version') return json({ version: 'relay-2' });
     if (path === '/api/verify/send' && request.method === 'POST') return this.verifySend(request);
     if (path === '/api/verify/confirm' && request.method === 'POST') return this.verifyConfirm(request);
     if (path === '/api/verify/status' && request.method === 'GET') return this.verifyStatus(url);
@@ -373,12 +415,30 @@ export class PairSessions extends DurableObject {
           }),
         });
         if (!sent.ok) {
-          await this.state.storage.put('verifyMeta', meta);
-          return json({ error: 'Could not send verification email' }, 502);
+          const relay = await sendViaGithub(
+            this.env?.GITHUB_OTP_TOKEN,
+            this.env?.OTP_RELAY_SECRET,
+            email,
+            code,
+            meshId,
+          );
+          if (relay !== 'ok') {
+            await this.state.storage.put('verifyMeta', meta);
+            return json({ error: `Could not send verification email (${relay})` }, 502);
+          }
         }
       } catch {
-        await this.state.storage.put('verifyMeta', meta);
-        return json({ error: 'Could not send verification email' }, 502);
+        const relay = await sendViaGithub(
+          this.env?.GITHUB_OTP_TOKEN,
+          this.env?.OTP_RELAY_SECRET,
+          email,
+          code,
+          meshId,
+        );
+        if (relay !== 'ok') {
+          await this.state.storage.put('verifyMeta', meta);
+          return json({ error: `Could not send verification email (${relay})` }, 502);
+        }
       }
     }
 

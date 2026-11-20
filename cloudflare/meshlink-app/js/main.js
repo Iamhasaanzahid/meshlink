@@ -48,6 +48,7 @@ function render() {
     const active = document.activeElement?.id;
     const pos = document.activeElement?.selectionStart;
     app.innerHTML = authHTML(s);
+    mountThemeToggle(s);
     restoreFocus(active, pos);
     if (s.auth.stage === 'email' && active !== 'verify-email') document.getElementById('verify-email')?.focus();
     if (s.auth.stage === 'otp' && active !== 'otp-code') document.getElementById('otp-code')?.focus();
@@ -71,6 +72,7 @@ function render() {
   const chatOpen = view === 'chats' && s.ui.activeChatId;
   app.innerHTML = `<div class="app ${wide ? 'wide' : ''} ${chatOpen ? 'chat-open' : ''}">${railHTML(s)}${view === 'chats' ? renderSidebar(s) : ''}<main class="main">${content}</main></div>`;
   mountChat(s);
+  mountThemeToggle(s);
   if (view === 'ai') refreshAiStatus();
   restoreFocus(active, pos);
 }
@@ -102,6 +104,24 @@ function railHTML(s) {
     <div class="rail-profile" data-action="nav" data-view="settings" title="Profile">${avatar(s.user || {}, { online: true })}</div>
     <div class="rail-version">v1.0</div>
   </nav>`;
+}
+
+function themeToggleHTML(s) {
+  const light = (s?.settings?.theme || 'dark') === 'light';
+  const label = light ? 'Dark mode' : 'Light mode';
+  return `<button id="theme-toggle" class="theme-toggle" type="button" data-action="toggle-theme" title="Switch to ${label}" aria-label="Switch to ${label}" aria-pressed="${light}">${icon(light ? 'moon' : 'sun', 'sm')}<span>${light ? 'Dark' : 'Light'}</span></button>`;
+}
+
+// One compact toggle in whichever top bar is currently visible.
+function mountThemeToggle(s) {
+  const html = themeToggleHTML(s);
+  const anchors = ['.chat-head .chat-actions', '.side-head .side-actions', '.page-head .head-actions'];
+  for (const selector of anchors) {
+    const el = document.querySelector(selector);
+    if (el && el.offsetParent !== null) { el.insertAdjacentHTML('afterbegin', html); return; }
+  }
+  const authPanel = document.querySelector('.auth-panel');
+  if (authPanel) authPanel.insertAdjacentHTML('afterbegin', `<div class="auth-theme-top">${html}</div>`);
 }
 
 function lockHTML() {
@@ -248,6 +268,7 @@ app.addEventListener('click', (e) => {
   if (handleSettingsAction(a, el)) return;
   if (handleCollectionsAction(a, el)) return;
   if (a.startsWith('ai-')) { handleAiAction(a, el); return; }
+  if (a === 'toggle-theme') { act.toggleTheme(); return; }
   if (a === 'nav') { act.setView(el.dataset.view); return; }
   if (a === 'demo-login') { act.loginDemo(); return; }
   if (a === 'qr-login') { codeStop?.(); codeStop = null; act.setStage('qr'); return; }
