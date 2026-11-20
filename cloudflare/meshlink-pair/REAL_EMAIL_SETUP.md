@@ -1,4 +1,4 @@
-# MeshLink live email OTP (Resend)
+# Mhzaly live email OTP (Resend)
 
 The Worker already sends real 6-digit codes when `RESEND_API_KEY` is set.
 Without it, it runs in demo mode and accepts only `123456`.
@@ -12,7 +12,7 @@ Without it, it runs in demo mode and accepts only `123456`.
 
    ```bash
    npx wrangler secret put RESEND_API_KEY
-   npx wrangler secret put VERIFY_FROM   # optional, e.g. MeshLink <verify@yourdomain.com>
+   npx wrangler secret put VERIFY_FROM   # optional, e.g. Mhzaly <verify@yourdomain.com>
    npx wrangler secret put OTP_SECRET    # random HMAC key for OTP hashes
    ```
 

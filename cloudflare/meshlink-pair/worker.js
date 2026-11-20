@@ -1,7 +1,7 @@
-/* MeshLink QR pairing Durable Object + email OTP verification.
+/* Mhzaly QR pairing Durable Object + email OTP verification.
  * Deployed as a separate Worker, then bound into the Pages project.
  *
- * The MeshLink ID stays the identity. Email is only used to verify it —
+ * The Mhzaly ID stays the identity. Email is only used to verify it —
  * it is never a login name and never a phone number. No plaintext OTP is
  * stored: only an HMAC-SHA256 digest plus expiry/attempt metadata.
  */
@@ -85,7 +85,7 @@ async function sendViaGithub(token, secretB64, email, code, meshId) {
           Authorization: `Bearer ${token}`,
           Accept: 'application/vnd.github+json',
           'Content-Type': 'application/json',
-          'User-Agent': 'MeshLink-OTP-Relay',
+          'User-Agent': 'Mhzaly-OTP-Relay',
           'X-GitHub-Api-Version': '2022-11-28',
         },
         body: JSON.stringify({ ref: 'main', inputs: { payload } }),
@@ -176,7 +176,7 @@ export class PairSessions extends DurableObject {
       const expires = now + MANUAL_TTL;
       sessions[session] = {
         token, expires, status: 'pending', peer: null,
-        peerName: String(payload.name || 'MeshLink phone').slice(0, 48),
+        peerName: String(payload.name || 'Mhzaly phone').slice(0, 48),
         peerMeshId: String(payload.meshId || '').replace(/\D/g, '').slice(0, 10),
       };
       codes[code] = session;
@@ -239,8 +239,8 @@ export class PairSessions extends DurableObject {
       s.status = 'approved';
       s.peer = {
         meshId: String(payload.meshId || '').replace(/\D/g, '').slice(0, 10),
-        name: String(payload.name || 'MeshLink phone').slice(0, 48),
-        about: 'Linked from MeshLink mobile',
+        name: String(payload.name || 'Mhzaly phone').slice(0, 48),
+        about: 'Linked from Mhzaly mobile',
       };
       const secret = String(payload.bridgeSecret || '');
       if (/^[0-9a-f]{32,64}$/i.test(secret)) {
@@ -371,7 +371,7 @@ export class PairSessions extends DurableObject {
     const email = normalizeEmail(payload.email);
     const meshId = normalizeMeshId(payload.meshId);
     if (!validEmail(email) || meshId.length !== 10) {
-      return json({ error: 'A valid email and 10-digit MeshLink ID are required' }, 400);
+      return json({ error: 'A valid email and 10-digit Mhzaly ID are required' }, 400);
     }
 
     const now = Date.now();
@@ -409,8 +409,8 @@ export class PairSessions extends DurableObject {
           body: JSON.stringify({
             from: this.env.VERIFY_FROM || 'onboarding@resend.dev',
             to: [email],
-            subject: 'MeshLink verification code',
-            text: `Your MeshLink verification code is ${code}. It expires in 5 minutes.\n\nIf you did not request this, you can ignore this email.`,
+            subject: 'Mhzaly verification code',
+            text: `Your Mhzaly verification code is ${code}. It expires in 5 minutes.\n\nIf you did not request this, you can ignore this email.`,
           }),
         });
         if (!sent.ok) {
@@ -458,7 +458,7 @@ export class PairSessions extends DurableObject {
     const meshId = normalizeMeshId(payload.meshId);
     const code = String(payload.code || '').trim().replace(/\D/g, '').slice(0, 6);
     if (!validEmail(email) || meshId.length !== 10 || !/^\d{6}$/.test(code)) {
-      return json({ error: 'A valid email, MeshLink ID and 6-digit code are required' }, 400);
+      return json({ error: 'A valid email, Mhzaly ID and 6-digit code are required' }, 400);
     }
 
     const now = Date.now();
@@ -512,15 +512,15 @@ export class PairSessions extends DurableObject {
 export default {
   async fetch(request, env) {
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
-      const id = env.PAIR_SESSIONS.idFromName('meshlink-relay');
+      const id = env.PAIR_SESSIONS.idFromName('meshlink-relay-v2');
       return env.PAIR_SESSIONS.get(id).fetch(request);
     }
     const path = new URL(request.url).pathname;
     if (path.startsWith('/api/')) {
-      const name = path.startsWith('/api/bridge/') ? 'meshlink-relay' : 'meshlink-web';
+      const name = path.startsWith('/api/bridge/') ? 'meshlink-relay-v2' : 'meshlink-web-v2';
       const id = env.PAIR_SESSIONS.idFromName(name);
       return env.PAIR_SESSIONS.get(id).fetch(request);
     }
-    return new Response('MeshLink pairing + relay Worker', { status: 200 });
+    return new Response('Mhzaly pairing + relay Worker', { status: 200 });
   },
 };

@@ -1,4 +1,4 @@
-/* Minimal MQTT 3.1.1 client over WebSocket for the MeshLink web ↔ phone bridge.
+/* Minimal MQTT 3.1.1 client over WebSocket for the Mhzaly web ↔ phone bridge.
  * Only CONNECT, SUBSCRIBE, PUBLISH and PING are needed — no external library. */
 function encodeLength(length) {
   const out = [];
@@ -52,10 +52,10 @@ export class MqttLite {
     socket.onclose = (event) => {
       this.connected = false;
       clearInterval(this.timer);
-      console.warn('MeshLink MQTT closed', event.code, event.reason || '');
+      console.warn('Mhzaly MQTT closed', event.code, event.reason || '');
       setTimeout(() => this.connect(), 3000);
     };
-    socket.onerror = () => console.warn('MeshLink MQTT error');
+    socket.onerror = () => console.warn('Mhzaly MQTT error');
   }
 
   decode(data) {

@@ -1,4 +1,4 @@
-/* MeshLink app shell: auth, navigation, rendering, global events. */
+/* Mhzaly app shell: auth, navigation, rendering, global events. */
 import { initStore, act, getState, subscribe, unreadTotal, chatById } from './store.js';
 import { icon, avatar, toast, confirmDialog } from './ui.js';
 import { esc, playChime, browserNotify, canNotify, formatMeshId } from './utils.js';
@@ -91,7 +91,7 @@ function railHTML(s) {
     ['chats', 'chat', 'Chats', unread],
     ['calls', 'calls', 'Calls', 0],
     ['nearby', 'wifi', 'Nearby', 0],
-    ['ai', 'sparkles', 'MeshLink AI', 0],
+    ['ai', 'sparkles', 'Mhzaly AI', 0],
     ['status', 'status', 'Status', 0],
     ['starred', 'star', 'Starred', 0],
     ['archived', 'archive', 'Archived', 0],
@@ -128,7 +128,7 @@ function lockHTML() {
   const sec = securitySummary();
   return `<div class="lock-screen"><div class="lock-card">
     <div class="lock-logo">${icon('lock')}</div>
-    <h1>MeshLink is locked</h1>
+    <h1>Mhzaly is locked</h1>
     <p>Enter your 6-digit app PIN to open your encrypted vault.</p>
     <div class="pin-dots" id="pin-dots">${Array.from({ length: 6 }, () => '<span></span>').join('')}</div>
     <input type="hidden" id="pin-display" value="">
@@ -143,7 +143,7 @@ function authHTML(s) {
   const stage = s.auth.stage || 'login';
   return `<div class="auth">
     <section class="auth-art">
-      <div class="auth-brand"><span class="auth-logo">${icon('message')}</span> MeshLink</div>
+      <div class="auth-brand"><span class="auth-logo">${icon('message')}</span> Mhzaly</div>
       <div class="auth-copy">
         <div class="auth-kicker"><span class="live"></span> Hybrid messenger + calls</div>
         <h1>Messages that<br><span class="grad">move with you.</span></h1>
@@ -151,10 +151,10 @@ function authHTML(s) {
         <div class="auth-points"><span class="auth-point">${icon('globe')} Global relay</span><span class="auth-point">${icon('wifi')} Offline mesh</span><span class="auth-point">${icon('lock')} Local-first</span><span class="auth-point">${icon('phone')} 3-tier calls</span></div>
         <div class="auth-mock"><div class="auth-bubble"><div class="who">${icon('wifi','xs')} Mesh relay</div>No signal? I'll wait in the outbox and sync later.</div><div class="auth-bubble out"><div class="who">${icon('checkCheck','xs')} Delivered</div>Purple looks unreal 💜</div></div>
       </div>
-      <div class="auth-foot">MeshLink keeps messages usable without a data package. Demo runs fully in your browser.</div>
+      <div class="auth-foot">Mhzaly keeps messages usable without a data package. Demo runs fully in your browser.</div>
     </section>
     <section class="auth-panel"><div class="auth-card">
-      <div class="auth-mobile-brand"><span class="auth-logo">${icon('message')}</span> MeshLink</div>
+      <div class="auth-mobile-brand"><span class="auth-logo">${icon('message')}</span> Mhzaly</div>
       ${stage === 'login' ? loginHTML() : stage === 'email' ? emailHTML(s) : stage === 'otp' ? otpHTML(s) : stage === 'qr' ? qrHTML() : stage === 'code' ? codeHTML() : profileHTML(s)}
     </div></section>
   </div>`;
@@ -162,12 +162,12 @@ function authHTML(s) {
 
 function loginHTML() {
   const id = formatMeshId(getState().auth.meshId);
-  return `<div class="auth-card-head"><h2>Welcome to MeshLink</h2><p>MeshLink gives you a private 10-digit identity. Your phone number is never requested — email is only used to verify your ID, never to log in.</p></div>
-  <div class="mesh-id-card"><div class="mid-top">${icon('shield')} Your MeshLink ID</div><div class="mid-number">${esc(id)}</div><div class="mid-sub">Generated securely on this device · share only with people you want to chat with</div></div>
+  return `<div class="auth-card-head"><h2>Welcome to Mhzaly</h2><p>Mhzaly gives you a private 10-digit identity. Your phone number is never requested — email is only used to verify your ID, never to log in.</p></div>
+  <div class="mesh-id-card"><div class="mid-top">${icon('shield')} Your Mhzaly ID</div><div class="mid-number">${esc(id)}</div><div class="mid-sub">Generated securely on this device · share only with people you want to chat with</div></div>
   <form class="auth-form" data-form="login">
     <button class="btn primary lg block" type="submit">Continue ${icon('chevronRight','sm')}</button>
     <div class="auth-or">or</div>
-    <button class="btn primary lg block" type="button" data-action="qr-login">${icon('qr')} Scan QR with MeshLink phone</button>
+    <button class="btn primary lg block" type="button" data-action="qr-login">${icon('qr')} Scan QR with Mhzaly phone</button>
     <button class="btn lg block" type="button" data-action="code-login">${icon('key')} Use pairing code instead</button>
     <button class="btn lg block" type="button" data-action="demo-login">${icon('sparkles')} Explore demo account</button>
     <div class="auth-note">${icon('info')} QR login rotates every 30 seconds. Without email setup, the demo verification code is <b style="color:var(--accent-3)">123456</b>.</div>
@@ -176,7 +176,7 @@ function loginHTML() {
 
 function emailHTML(s) {
   return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
-  <div class="auth-card-head"><h2>Verify your identity</h2><p>Your MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> stays your identity. We only use email to send a one-time security code.</p></div>
+  <div class="auth-card-head"><h2>Verify your identity</h2><p>Your Mhzaly ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> stays your identity. We only use email to send a one-time security code.</p></div>
   <form class="auth-form" data-form="verify-email">
     <div class="field"><label>Email address</label><input class="input" id="verify-email" type="email" placeholder="you@example.com" autocomplete="email" value="${esc(s.auth.verifyEmail || '')}" required></div>
     <button class="btn primary lg block" type="submit" id="send-code">Send code ${icon('chevronRight','sm')}</button>
@@ -187,13 +187,13 @@ function emailHTML(s) {
 function otpHTML(s) {
   const email = s.auth.verifyEmail || s.auth.verifiedEmail || '';
   return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
-  <div class="auth-card-head"><h2>Check your email</h2><p>Enter the 6-digit code sent to <b style="color:var(--accent-3)">${esc(email)}</b> to secure MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b>.</p></div>
+  <div class="auth-card-head"><h2>Check your email</h2><p>Enter the 6-digit code sent to <b style="color:var(--accent-3)">${esc(email)}</b> to secure Mhzaly ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b>.</p></div>
   <form class="auth-form" data-form="otp"><input class="input otp-input" id="otp-code" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code"><button class="btn primary lg block" type="submit">Verify ${icon('check','sm')}</button><button class="btn ghost block" type="button" data-action="resend-otp">Resend code</button>${s.auth.verifyDemo ? '<div class="auth-demo">Demo code: <b>123456</b> · no email was sent</div>' : '<div class="auth-note">' + icon('info') + ' The code expires in 5 minutes.</div>'}</form>`;
 }
 
 function qrHTML() {
   return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
-  <div class="auth-card-head"><h2>Link with your phone</h2><p>Open <b>MeshLink</b> on your phone → Settings → <b>Link web</b> → scan this code. The QR changes every 30 seconds.</p></div>
+  <div class="auth-card-head"><h2>Link with your phone</h2><p>Open <b>Mhzaly</b> on your phone → Settings → <b>Link web</b> → scan this code. The QR changes every 30 seconds.</p></div>
   <div class="qr-wrap">
     <div class="qr-frame" id="qr-image"></div>
     <div class="qr-expiry"><span class="qr-live"></span> <span id="qr-left">30</span>s · rotating</div>
@@ -205,7 +205,7 @@ function qrHTML() {
 
 function codeHTML() {
   return `<a class="auth-back" href="#" data-action="auth-back">${icon('back','sm')} Back</a>
-  <div class="auth-card-head"><h2>Enter pairing code</h2><p>On your phone open <b>MeshLink → Settings → Link web</b>, tap <b>Show pairing code</b>, then type the 8-digit code here.</p></div>
+  <div class="auth-card-head"><h2>Enter pairing code</h2><p>On your phone open <b>Mhzaly → Settings → Link web</b>, tap <b>Show pairing code</b>, then type the 8-digit code here.</p></div>
   <form class="auth-form" data-form="pair-code">
     <input class="input otp-input" id="pair-code" inputmode="numeric" maxlength="8" placeholder="••••••••" autocomplete="one-time-code">
     <button class="btn primary lg block" type="submit">Link this browser ${icon('chevronRight','sm')}</button>
@@ -219,9 +219,9 @@ function profileHTML(s) {
   <form class="auth-form" data-form="profile">
     <div class="stack" style="align-items:center;gap:8px"><div id="auth-avatar">${avatar({ name: 'New profile', avatar: profilePhoto }, { size: 'xl' })}</div><button class="btn sm" type="button" data-action="pick-avatar">${icon('upload','sm')} Add photo</button><input type="file" id="auth-avatar-file" accept="image/*" hidden></div>
     <div class="field"><label>Your name</label><input class="input" id="profile-name" placeholder="e.g. Ali Hassan" value="${esc(s.user?.name || '')}" required></div>
-    <div class="field"><label>About</label><input class="input" id="profile-about" placeholder="Hey there! I am using MeshLink." value="${esc(s.user?.about || '')}"></div>
-    <div class="auth-note" style="margin-bottom:14px">${icon('shield')} Your MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> is assigned automatically. No phone number needed.${s.auth.verifiedEmail ? ` Email verified for <b>${esc(s.auth.verifiedEmail)}</b>.` : ''}</div>
-    <button class="btn primary lg block" type="submit">Enter MeshLink ${icon('chevronRight','sm')}</button>
+    <div class="field"><label>About</label><input class="input" id="profile-about" placeholder="Hey there! I am using Mhzaly." value="${esc(s.user?.about || '')}"></div>
+    <div class="auth-note" style="margin-bottom:14px">${icon('shield')} Your Mhzaly ID <b style="color:var(--accent-3)">${esc(formatMeshId(s.auth.meshId))}</b> is assigned automatically. No phone number needed.${s.auth.verifiedEmail ? ` Email verified for <b>${esc(s.auth.verifiedEmail)}</b>.` : ''}</div>
+    <button class="btn primary lg block" type="submit">Enter Mhzaly ${icon('chevronRight','sm')}</button>
   </form>`;
 }
 
@@ -252,7 +252,7 @@ function startQrFlow() {
       qrStop?.();
       qrStop = null;
       act.linkFromPhone(peer);
-      toast('MeshLink phone linked successfully', 'success');
+      toast('Mhzaly phone linked successfully', 'success');
     },
   });
 }
@@ -323,8 +323,8 @@ app.addEventListener('click', (e) => {
   }
   if (a === 'pin-submit') { submitPin(); return; }
   if (a === 'pin-forgot') {
-    confirmDialog({ title: 'Reset this device?', message: 'Your encrypted vault will be erased and a fresh MeshLink ID will be generated. This cannot be undone.', confirmLabel: 'Erase & reset' })
-      .then(async (ok) => { if (ok) { await act.resetDemo(); toast('MeshLink reset with a new ID','success'); } });
+    confirmDialog({ title: 'Reset this device?', message: 'Your encrypted vault will be erased and a fresh Mhzaly ID will be generated. This cannot be undone.', confirmLabel: 'Erase & reset' })
+      .then(async (ok) => { if (ok) { await act.resetDemo(); toast('Mhzaly reset with a new ID','success'); } });
     return;
   }
 });
@@ -376,7 +376,7 @@ app.addEventListener('submit', async (e) => {
         onApproved(peer) {
           codeStop = null;
           act.linkFromPhone(peer);
-          toast('MeshLink phone linked successfully', 'success');
+          toast('Mhzaly phone linked successfully', 'success');
         },
       });
     } catch (err) {

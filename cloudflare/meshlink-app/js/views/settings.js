@@ -14,7 +14,7 @@ export function renderSettingsPage() {
   const sec = securitySummary();
   const emailVerified = !!(s.auth.verified && s.auth.verifiedEmail);
   return `<div class="page"><div class="page-inner">
-    <div class="page-head"><div><div class="eyebrow">Your MeshLink</div><h1>Settings</h1><p>Profile, appearance, network mode, privacy and data.</p></div><div class="head-actions"><button class="btn" data-action="logout">${icon('logout')} Log out</button></div></div>
+    <div class="page-head"><div><div class="eyebrow">Your Mhzaly</div><h1>Settings</h1><p>Profile, appearance, network mode, privacy and data.</p></div><div class="head-actions"><button class="btn" data-action="logout">${icon('logout')} Log out</button></div></div>
     <div class="settings-grid"><div class="settings-col">
       <div class="card set-card"><h2>Profile</h2><p class="sub">This is how you appear to contacts.</p>
         <div class="profile-editor"><div class="pe-top">${avatar(u,{size:'lg',online:true})}<div class="grow"><div style="font-weight:750">${esc(u.name)}</div><div class="muted small">${esc(formatMeshId(u.meshId || s.auth.meshId))}</div></div><button class="btn sm" data-action="edit-profile">${icon('edit','sm')} Edit</button></div>
@@ -22,7 +22,7 @@ export function renderSettingsPage() {
       </div>
       <div class="card set-card"><h2>Security & privacy</h2><p class="sub">Your vault is encrypted locally. No phone number or cloud account is required — email is only used for security verification.</p>
         <div class="security-banner"><div class="sb-ic">${icon('shield','lg')}</div><div class="grow"><div style="font-weight:750;font-size:13px">${sec.pin?'PIN lock enabled':'Device key protection active'}</div><div class="muted small">${esc(sec.cipher)} · ${esc(sec.kdf)} · offline-first</div></div></div>
-        <div class="set-row"><div class="si-ic">${icon('key')}</div><div class="si-body"><div class="si-title">MeshLink ID</div><div class="si-sub">Auto-generated 10-digit identity · never your real number</div></div><button class="btn sm" data-action="copy-mesh-id">${icon('copy','sm')} Copy</button></div>
+        <div class="set-row"><div class="si-ic">${icon('key')}</div><div class="si-body"><div class="si-title">Mhzaly ID</div><div class="si-sub">Auto-generated 10-digit identity · never your real number</div></div><button class="btn sm" data-action="copy-mesh-id">${icon('copy','sm')} Copy</button></div>
         <div class="set-row"><div class="si-ic">${icon('shield')}</div><div class="si-body"><div class="si-title">Email verification ${emailVerified ? `<span class="verified-badge">${icon('checkCheck','sm')} Verified</span>` : ''}</div><div class="si-sub">${emailVerified ? `${esc(s.auth.verifiedEmail)} · security only, never used to log in` : 'Not verified — add an email to secure this ID'}</div></div>${emailVerified ? '' : `<button class="btn sm" data-action="verify-email">Verify</button>`}</div>
         <div class="set-row"><div class="si-ic">${icon('lock')}</div><div class="si-body"><div class="si-title">App PIN</div><div class="si-sub">${sec.pin?'Unlock required in a new tab or after 5 minutes':'Add a 6-digit PIN for a second layer'}</div></div>${sec.pin?`<button class="btn sm" data-action="remove-pin">Remove</button>`:`<button class="btn sm" data-action="set-pin">Set PIN</button>`}</div>
         <div class="set-row"><div class="si-ic">${icon('eye')}</div><div class="si-body"><div class="si-title">App lock</div><div class="si-sub">Instantly hide chats and require your PIN.</div></div><button class="btn sm" data-action="lock-app">${icon('lock','sm')} Lock now</button></div>
@@ -53,7 +53,7 @@ export function renderSettingsPage() {
         <div class="set-row"><div class="si-ic">${icon('download')}</div><div class="si-body"><div class="si-title">Export backup</div><div class="si-sub">Chats, messages, statuses and calls as JSON.</div></div><button class="btn sm" data-action="export">Export</button></div>
         <div class="set-row"><div class="si-ic">${icon('trash')}</div><div class="si-body"><div class="si-title">Reset demo</div><div class="si-sub">Clears local storage and restores seeded data.</div></div><button class="btn sm danger" data-action="reset-demo">Reset</button></div>
       </div>
-      <div class="card set-card"><h2>About</h2><div class="about-line">${icon('shield')} MeshLink Web · private messenger + calls</div><div class="about-line">${icon('wifi')} Global WebSocket relay · LAN mesh · offline outbox</div><div class="about-line">${icon('lock')} Data stays encrypted in this browser's local vault</div><div class="about-line">${icon('sparkles')} ${starredMessages().length} starred messages</div></div>
+      <div class="card set-card"><h2>About</h2><div class="about-line">${icon('shield')} Mhzaly Web · private messenger + calls</div><div class="about-line">${icon('wifi')} Global WebSocket relay · LAN mesh · offline outbox</div><div class="about-line">${icon('lock')} Data stays encrypted in this browser's local vault</div><div class="about-line">${icon('sparkles')} ${starredMessages().length} starred messages</div></div>
     </div></div>
   </div></div>`;
 }
@@ -64,10 +64,10 @@ export function openProfileEditor() {
   openModal({ title:'Edit profile', subtitle:'Name, photo and about', body:`<div class="stack" style="align-items:center;gap:10px;margin-bottom:14px"><div id="pe-av">${avatar({...u,avatar:photo},{size:'xl'})}</div><button class="btn sm" id="pe-photo">${icon('upload','sm')} Change photo</button><input type="file" id="pe-file" accept="image/*" hidden></div>
     <div class="field" style="margin-bottom:10px"><label>Name</label><input class="input" id="pe-name" value="${esc(u.name||'')}"></div>
     <div class="field" style="margin-bottom:10px"><label>About</label><input class="input" id="pe-about" value="${esc(u.about||'')}"></div>
-    <div class="auth-note">${icon('key')} MeshLink ID <b style="color:var(--accent-3)">${esc(formatMeshId(u.meshId || getState().auth.meshId))}</b> is assigned by the app and cannot be changed.</div>`, footer:`<button class="btn sm" data-close>Cancel</button><button class="btn sm primary" id="pe-save">Save</button>`, onMount:(el,close)=>{
+    <div class="auth-note">${icon('key')} Mhzaly ID <b style="color:var(--accent-3)">${esc(formatMeshId(u.meshId || getState().auth.meshId))}</b> is assigned by the app and cannot be changed.</div>`, footer:`<button class="btn sm" data-close>Cancel</button><button class="btn sm primary" id="pe-save">Save</button>`, onMount:(el,close)=>{
       el.querySelector('#pe-photo').onclick=()=>el.querySelector('#pe-file').click();
       el.querySelector('#pe-file').onchange=async(e)=>{ const f=e.target.files[0]; if (!f) return; const r=new FileReader(); r.onload=()=>{ photo=String(r.result); el.querySelector('#pe-av').innerHTML=avatar({...u,avatar:photo},{size:'xl'}); }; r.readAsDataURL(f); };
-      el.querySelector('#pe-save').onclick=()=>{ act.updateProfile({name:el.querySelector('#pe-name').value.trim()||'MeshLink user',about:el.querySelector('#pe-about').value.trim(),avatar:photo}); close(); toast('Profile updated','success'); };
+      el.querySelector('#pe-save').onclick=()=>{ act.updateProfile({name:el.querySelector('#pe-name').value.trim()||'Mhzaly user',about:el.querySelector('#pe-about').value.trim(),avatar:photo}); close(); toast('Profile updated','success'); };
     } });
 }
 
@@ -77,7 +77,7 @@ export function openBlockedManager() {
 }
 
 function openPinSetup() {
-  openModal({ title:'Create app PIN', subtitle:'6 digits · encrypts your local vault', body:`<div class="field"><label>New PIN</label><input class="input pin-input" id="new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><div class="field"><label>Confirm PIN</label><input class="input pin-input" id="confirm-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><div class="auth-note">${icon('lock')} Store this PIN safely. If you forget it, you can reset this device with a new MeshLink ID.</div>`, footer:`<button class="btn sm" data-close>Cancel</button><button class="btn sm primary" id="save-pin">Enable PIN</button>`, onMount:(el,close)=>{
+  openModal({ title:'Create app PIN', subtitle:'6 digits · encrypts your local vault', body:`<div class="field"><label>New PIN</label><input class="input pin-input" id="new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><div class="field"><label>Confirm PIN</label><input class="input pin-input" id="confirm-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><div class="auth-note">${icon('lock')} Store this PIN safely. If you forget it, you can reset this device with a new Mhzaly ID.</div>`, footer:`<button class="btn sm" data-close>Cancel</button><button class="btn sm primary" id="save-pin">Enable PIN</button>`, onMount:(el,close)=>{
     el.querySelector('#save-pin').onclick=async()=>{
       const a=el.querySelector('#new-pin').value.trim(), b=el.querySelector('#confirm-pin').value.trim();
       if (!/^\d{6}$/.test(a)) return toast('PIN must be exactly 6 digits','error');
@@ -89,7 +89,7 @@ function openPinSetup() {
 
 export function handleSettingsAction(action, el) {
   if (action==='set-theme') { act.setTheme(el.dataset.theme); return true; }
-  if (action==='copy-mesh-id') { const id=String(getState().user?.meshId||getState().auth.meshId||''); navigator.clipboard?.writeText(id).then(()=>toast('MeshLink ID copied','success')).catch(()=>toast(id,'success')); return true; }
+  if (action==='copy-mesh-id') { const id=String(getState().user?.meshId||getState().auth.meshId||''); navigator.clipboard?.writeText(id).then(()=>toast('Mhzaly ID copied','success')).catch(()=>toast(id,'success')); return true; }
   if (action==='verify-email') { act.setStage('email'); return true; }
   if (action==='set-pin') { openPinSetup(); return true; }
   if (action==='remove-pin') { confirmDialog({title:'Remove app PIN?',message:'The vault will be protected by the device key only.',confirmLabel:'Remove PIN'}).then(async(ok)=>{ if(ok){ await act.disablePin(); toast('App PIN removed','success'); } }); return true; }
@@ -101,7 +101,7 @@ export function handleSettingsAction(action, el) {
   if (action==='manage-blocked') { openBlockedManager(); return true; }
   if (action==='logout') { confirmDialog({title:'Log out?',message:'Your local data stays on this device. Use demo login to return.',confirmLabel:'Log out'}).then((ok)=>{ if (ok) act.logout(); }); return true; }
   if (action==='reset-demo') { confirmDialog({title:'Reset demo?',message:'All local chats, media and settings will be cleared.',confirmLabel:'Reset'}).then((ok)=>{ if (ok) { act.resetDemo(); toast('Demo reset','success'); } }); return true; }
-  if (action==='export') { downloadJson(act.exportData(), 'meshlink-backup.json'); toast('Backup exported','success'); return true; }
+  if (action==='export') { downloadJson(act.exportData(), 'mhzaly-backup.json'); toast('Backup exported','success'); return true; }
   if (action==='enable-notifications') { if (!('Notification' in window)) return toast('Notifications unsupported','error'); Notification.requestPermission().then((p)=>{ toast(p==='granted'?'Notifications enabled':'Permission denied', p==='granted'?'success':'error'); if (el) el.textContent=p==='granted'?'Enabled':'Blocked'; }); return true; }
   return false;
 }

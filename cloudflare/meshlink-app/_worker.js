@@ -1,4 +1,4 @@
-/* MeshLink Pages Function: forwards QR/manual pairing and email OTP to the
+/* Mhzaly Pages Function: forwards QR/manual pairing and email OTP to the
  * `meshlink-pair` Durable Object Worker. Everything else is a static asset.
  *
  * Security: unknown paths return a real 404 instead of the SPA's index.html,

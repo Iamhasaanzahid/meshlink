@@ -1,4 +1,4 @@
-# MeshLink Web — Cloudflare ready
+# Mhzaly Web — Cloudflare ready
 
 Static web app + 30-second QR pairing API and email OTP verification as a Pages Function.
 
@@ -19,7 +19,7 @@ Local equivalent: `cd meshlink-web && python3 server.py`.
 
 ## Email verification
 
-The app-generated 10-digit MeshLink ID remains the identity. Email is used only
+The app-generated 10-digit Mhzaly ID remains the identity. Email is used only
 to verify it; it is never a login or a phone number. `/api/verify/*` is forwarded
 to the same `PAIR_SESSIONS` Durable Object as `/api/pair/*`.
 
