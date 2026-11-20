@@ -53,7 +53,7 @@ export function renderSettingsPage() {
         <div class="set-row"><div class="si-ic">${icon('download')}</div><div class="si-body"><div class="si-title">Export backup</div><div class="si-sub">Chats, messages, statuses and calls as JSON.</div></div><button class="btn sm" data-action="export">Export</button></div>
         <div class="set-row"><div class="si-ic">${icon('trash')}</div><div class="si-body"><div class="si-title">Reset demo</div><div class="si-sub">Clears local storage and restores seeded data.</div></div><button class="btn sm danger" data-action="reset-demo">Reset</button></div>
       </div>
-      <div class="card set-card"><h2>About</h2><div class="about-line">${icon('shield')} MeshLink Web · hybrid messenger + 3-tier calls</div><div class="about-line">${icon('wifi')} Global WebSocket relay · LAN mesh · offline outbox</div><div class="about-line">${icon('lock')} Data stays encrypted in this browser's local vault</div><div class="about-line">${icon('sparkles')} ${starredMessages().length} starred messages</div></div>
+      <div class="card set-card"><h2>About</h2><div class="about-line">${icon('shield')} MeshLink Web · private messenger + calls</div><div class="about-line">${icon('wifi')} Global WebSocket relay · LAN mesh · offline outbox</div><div class="about-line">${icon('lock')} Data stays encrypted in this browser's local vault</div><div class="about-line">${icon('sparkles')} ${starredMessages().length} starred messages</div></div>
     </div></div>
   </div></div>`;
 }

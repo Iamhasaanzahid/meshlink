@@ -10,7 +10,7 @@ export function renderCallsPage() {
   const calls = s.calls.filter((c) => filter === 'missed' ? c.status === 'missed' : true);
   const tier = callTierFor();
   return `<div class="page"><div class="page-inner">
-    <div class="page-head"><div><div class="eyebrow">3-tier hybrid audio engine</div><h1>Calls</h1><p>Global WebRTC, local hotspot P2P, or offline voice-note fallback.</p></div><div class="head-actions"><button class="btn primary" data-action="new-call">${icon('phone')} New call</button></div></div>
+    <div class="page-head"><div><div class="eyebrow">Adaptive audio engine</div><h1>Calls</h1><p>Global WebRTC, local hotspot P2P, or offline voice-note fallback.</p></div><div class="head-actions"><button class="btn primary" data-action="new-call">${icon('phone')} New call</button></div></div>
     <div class="card set-card" style="margin-bottom:18px;display:flex;gap:12px;align-items:center">
       <div class="si-ic" style="width:42px;height:42px">${icon(tier.icon)}</div>
       <div class="grow"><div style="font-weight:700;font-size:13px">Current call tier: ${esc(tier.name)}</div><div class="muted small">${esc(tier.sub)} · automatically selected from your network mode</div></div>

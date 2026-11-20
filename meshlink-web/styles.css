@@ -1104,7 +1104,7 @@ img, video { max-width: 100%; display: block; }
 @keyframes flashBubble { 0%, 100% { box-shadow: var(--shadow-sm); } 30% { box-shadow: 0 0 0 3px var(--accent); } }
 @keyframes pulseRing { 0% { transform: scale(.85); opacity: 0; } 20% { opacity: .8; } 100% { transform: scale(1.5); opacity: 0; } }
 
-/* ------------------------------------------------ hybrid / transport additions */
+/* ------------------------------------------------ transport additions */
 .net-pill {
   display: flex; align-items: center; gap: 8px; padding: 8px 11px;
   border-radius: 11px; border: 1px solid var(--line); background: var(--surface);
