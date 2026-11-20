@@ -18,7 +18,7 @@ import { initRealtime, onRemote } from './realtime.js';
 import { initLocalTransport } from './transport/localTransport.js';
 import { openCall, closeCall } from './media/call.js';
 import { startQrLogin, renderQr, approvePair, claimPairCode, watchPair } from './pairing.js';
-import { initBridge } from './bridge.js?v=8';
+import { initBridge } from './bridge.js?v=10';
 
 const app = document.getElementById('app');
 let profilePhoto = '';
@@ -457,7 +457,39 @@ onRemote((event) => {
 render();
 
 // Phone → web bridge: a MeshLink phone publishes text to the same free relay.
-initBridge(getState().auth?.meshId, ({ from, id, body, name }) => {
+initBridge(getState().auth?.meshId, ({ from, id, body, name, self, to, origin }) => {
+  const me = getState().auth?.meshId;
+  if (self) {
+    // A linked Android device sent this message. Show it as our own outgoing
+    // message, not as an incoming chat from ourselves.
+    if (origin === 'web' || origin === 'android') {
+      const peer = to || (origin === 'android' ? from : '');
+      if (!/^\d{10}$/.test(peer)) return;
+      const chat = getState().chats.find((c) => c.type === 'dm' && c.peerId === peer)
+        || act.startDm(peer);
+      if (!chat) return;
+      act.receiveMessage({
+        id,
+        chatId: chat.id,
+        senderId: 'u_me',
+        createdAt: Date.now(),
+        kind: 'text',
+        text: body,
+        media: null,
+        link: null,
+        replyTo: null,
+        reactions: {},
+        starredBy: [],
+        deletedFor: [],
+        deletedForEveryone: false,
+        status: 'sent',
+        transport: 'global',
+      }, { remote: true, own: true });
+      render();
+    }
+    return;
+  }
+  if (from === me) return;
   const chat = getState().chats.find((c) => c.type === 'dm' && c.peerId === from)
     || act.startDm(from);
   if (!chat) return;

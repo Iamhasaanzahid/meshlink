@@ -1,7 +1,7 @@
 import { seedState, demoProfile } from './seed.js';
 import { uid, previewOf, linkPreviewFor, extractUrl, fmtDuration, generateMeshId } from './utils.js';
 import { sendRemote } from './realtime.js';
-import { sendBridge } from './bridge.js';
+import { sendBridge, sendBridgeSelf } from './bridge.js?v=10';
 import { netState, setNetMode, onNetChange } from './transport/connectivity.js';
 import { encryptState, decryptState, isLocked, hasPin, setPin, verifyPin, clearPin, clearSessionPassphrase, setSessionPassphrase, devicePassphrase } from './security.js';
 
@@ -505,11 +505,15 @@ export const act = {
     commit();
     sendRemote({ type: 'message:new', message });
     if (chat.type === 'dm' && /^\d{10}$/.test(chat.peerId) && kind === 'text') {
-      sendBridge(chat.peerId, {
+      const bridgeMessage = {
         id: message.id,
         body: value,
         name: state.user?.name || 'MeshLink user',
-      });
+      };
+      sendBridge(chat.peerId, bridgeMessage);
+      // Other linked devices (the phone that paired this browser) need a copy
+      // of messages sent from the web, otherwise web chats live only here.
+      sendBridgeSelf(chat.peerId, bridgeMessage);
     }
     if (status === 'sent') scheduleTicks(message.id);
     if (status === 'queued') {
@@ -546,7 +550,7 @@ export const act = {
     commit();
     if (open) setTimeout(() => document.getElementById('msg-search')?.focus(), 60);
   },
-  receiveMessage(message, { remote = false } = {}) {
+  receiveMessage(message, { remote = false, own = false } = {}) {
     if (!message || !message.id) return;
     if (state.messages.some((m) => m.id === message.id)) return;
     const chat = chatById(message.chatId);
@@ -556,14 +560,16 @@ export const act = {
     chat.lastSenderId = message.senderId;
     chat.lastMessage = previewOf(message, userOf(message.senderId).name, 'u_me');
     const blocked = chat.type !== 'group' && isBlocked(chat.peerId);
-    if (state.ui.activeChatId === chat.id && !blocked) {
+    if (own) {
+      chat.unread = 0;
+    } else if (state.ui.activeChatId === chat.id && !blocked) {
       chat.unread = 0;
     } else {
       chat.unread = (chat.unread || 0) + 1;
     }
     commit();
     if (!remote) sendRemote({ type: 'message:new', message });
-    if (!blocked) {
+    if (!blocked && !own) {
       window.dispatchEvent(new CustomEvent('meshlink:incoming', {
         detail: {
           chatId: chat.id,
