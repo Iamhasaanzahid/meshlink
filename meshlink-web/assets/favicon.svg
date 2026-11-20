@@ -2,12 +2,16 @@
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#A78BFA"/>
-      <stop offset=".45" stop-color="#7C3AED"/>
+      <stop offset=".48" stop-color="#7C3AED"/>
       <stop offset="1" stop-color="#4338CA"/>
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="17" fill="url(#g)"/>
   <path fill="#FFFFFF" d="M20 15.5H44A7 7 0 0 1 51 22.5V36A7 7 0 0 1 44 43H32L24 49V43H20A7 7 0 0 1 13 36V22.5A7 7 0 0 1 20 15.5Z"/>
-  <path fill="#5B21B6" d="M23 22H41A1.5 1.5 0 0 1 42.5 23.5V27A1.5 1.5 0 0 1 41 28.5H34V38A1.5 1.5 0 0 1 32.5 39.5H29.5A1.5 1.5 0 0 1 28 38V28.5H23A1.5 1.5 0 0 1 21.5 27V23.5A1.5 1.5 0 0 1 23 22Z"/>
+  <g fill="none" stroke="#5B21B6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M25 38V22"/>
+    <path d="M39 38V22"/>
+    <path d="M25 22L32 31L39 22"/>
+  </g>
   <path fill="#34D399" d="M47 11L48.2 15.8L53 17L48.2 18.2L47 23L45.8 18.2L41 17L45.8 15.8Z"/>
 </svg>

@@ -1,14 +1,14 @@
-/* T LINK AI — offline local intelligence.
-   Talks to a local Ollama engine through the T LINK server (brand-facing name: T LINK AI).
+/* Mhzaly AI — offline local intelligence.
+   Talks to a local Ollama engine through the Mhzaly server (brand-facing name: Mhzaly AI).
    When no local engine is installed, a built-in offline responder keeps the demo usable. */
 import { act, getState, unreadTotal } from '../store.js';
 import { icon, toast, confirmDialog } from '../ui.js';
 import { esc, fmtTime } from '../utils.js';
 
 const MODELS = [
-  { id: 'meshlink-mini', label: 'T LINK Mini', note: 'fast · local' },
-  { id: 'meshlink-plus', label: 'T LINK Plus', note: 'balanced · local' },
-  { id: 'meshlink-pro', label: 'T LINK Pro', note: 'deep · local' },
+  { id: 'meshlink-mini', label: 'Mhzaly Mini', note: 'fast · local' },
+  { id: 'meshlink-plus', label: 'Mhzaly Plus', note: 'balanced · local' },
+  { id: 'meshlink-pro', label: 'Mhzaly Pro', note: 'deep · local' },
 ];
 
 const PROMPTS = [
@@ -26,7 +26,7 @@ let engineModels = [];
 export function renderAiPage() {
   const ai = getState().ai || { messages: [], model: 'meshlink-mini' };
   return `<div class="page ai-page"><div class="page-inner ai-inner">
-    <div class="page-head"><div><div class="eyebrow">Offline intelligence · on-device</div><h1>T LINK AI</h1><p>Ask anything. Runs against a free local engine — no cloud, no account, no internet required.</p></div><div class="head-actions"><button class="btn" data-action="ai-clear">${icon('trash')} Clear</button></div></div>
+    <div class="page-head"><div><div class="eyebrow">Offline intelligence · on-device</div><h1>Mhzaly AI</h1><p>Ask anything. Runs against a free local engine — no cloud, no account, no internet required.</p></div><div class="head-actions"><button class="btn" data-action="ai-clear">${icon('trash')} Clear</button></div></div>
     <div class="ai-layout">
       <aside class="card ai-side">
         <div class="ai-engine"><div class="ai-orb">${icon('sparkles','lg')}</div><div class="grow"><div style="font-weight:750;font-size:13px">Local engine</div><div class="muted small" id="ai-engine-state">${engineStatus === 'online' ? `Ready · ${engineModels.length} model${engineModels.length === 1 ? '' : 's'}` : engineStatus === 'checking' ? 'Checking local engine…' : 'Built-in offline responder'}</div></div><span class="engine-dot ${engineStatus}"></span></div>
@@ -34,14 +34,14 @@ export function renderAiPage() {
         <div class="stack" style="gap:6px">${MODELS.map((m) => `<button class="model-row ${ai.model === m.id ? 'active' : ''}" data-action="ai-model" data-model="${m.id}">${icon(ai.model === m.id ? 'check' : 'sparkles','sm')}<div class="grow"><div class="si-title">${m.label}</div><div class="si-sub">${m.note}</div></div></button>`).join('')}</div>
         <div class="ai-section-label">Quick prompts</div>
         <div class="ai-prompts">${PROMPTS.map((p) => `<button class="chip" data-action="ai-prompt" data-text="${esc(p)}">${esc(p)}</button>`).join('')}</div>
-        <div class="auth-note">${icon('shield')} T LINK AI never needs your phone number, email or location. Prompts stay on this device.</div>
+        <div class="auth-note">${icon('shield')} Mhzaly AI never needs your phone number, email or location. Prompts stay on this device.</div>
       </aside>
       <section class="card ai-chat">
-        <div class="ai-chat-head"><div class="ai-avatar">${icon('sparkles')}</div><div class="grow"><div style="font-weight:750;font-size:13px">T LINK AI</div><div class="muted small">Offline assistant · ${esc(MODELS.find((m) => m.id === ai.model)?.label || 'T LINK Mini')}</div></div><span class="tag purple">LOCAL</span></div>
+        <div class="ai-chat-head"><div class="ai-avatar">${icon('sparkles')}</div><div class="grow"><div style="font-weight:750;font-size:13px">Mhzaly AI</div><div class="muted small">Offline assistant · ${esc(MODELS.find((m) => m.id === ai.model)?.label || 'Mhzaly Mini')}</div></div><span class="tag purple">LOCAL</span></div>
         <div class="ai-messages" id="ai-messages">
-          ${ai.messages.length ? ai.messages.map((m) => aiBubble(m)).join('') : `<div class="ai-welcome"><div class="ai-orb big">${icon('sparkles','xl')}</div><h2>Ask T LINK AI</h2><p>Summarize chats, draft replies, or learn how the offline mesh works. Answers are generated locally.</p><div class="ai-suggest">${PROMPTS.slice(0, 3).map((p) => `<button class="chip" data-action="ai-prompt" data-text="${esc(p)}">${esc(p)}</button>`).join('')}</div></div>`}
+          ${ai.messages.length ? ai.messages.map((m) => aiBubble(m)).join('') : `<div class="ai-welcome"><div class="ai-orb big">${icon('sparkles','xl')}</div><h2>Ask Mhzaly AI</h2><p>Summarize chats, draft replies, or learn how the offline mesh works. Answers are generated locally.</p><div class="ai-suggest">${PROMPTS.slice(0, 3).map((p) => `<button class="chip" data-action="ai-prompt" data-text="${esc(p)}">${esc(p)}</button>`).join('')}</div></div>`}
         </div>
-        <form class="ai-composer" data-form="ai"><textarea class="textarea" id="ai-input" rows="1" placeholder="Message T LINK AI…" style="resize:none"></textarea><button class="send-btn" id="ai-send" type="submit" title="Send">${icon('send')}</button></form>
+        <form class="ai-composer" data-form="ai"><textarea class="textarea" id="ai-input" rows="1" placeholder="Message Mhzaly AI…" style="resize:none"></textarea><button class="send-btn" id="ai-send" type="submit" title="Send">${icon('send')}</button></form>
       </section>
     </div>
   </div></div>`;
@@ -49,25 +49,25 @@ export function renderAiPage() {
 
 function aiBubble(m) {
   const mine = m.role === 'user';
-  return `<div class="ai-msg ${mine ? 'mine' : 'theirs'}" id="ai-msg-${m.id}"><div class="ai-msg-head">${mine ? 'You' : icon('sparkles','xs') + ' T LINK AI'} · ${fmtTime(m.at)}</div><div class="ai-bubble ${m.pending ? 'pending' : ''}">${m.pending ? '<span class="typing"><i></i><i></i><i></i></span>' : esc(m.text || '')}${!m.pending && !mine ? `<button class="ai-copy" data-action="ai-copy" data-id="${m.id}" title="Copy">${icon('copy','xs')}</button>` : ''}</div></div>`;
+  return `<div class="ai-msg ${mine ? 'mine' : 'theirs'}" id="ai-msg-${m.id}"><div class="ai-msg-head">${mine ? 'You' : icon('sparkles','xs') + ' Mhzaly AI'} · ${fmtTime(m.at)}</div><div class="ai-bubble ${m.pending ? 'pending' : ''}">${m.pending ? '<span class="typing"><i></i><i></i><i></i></span>' : esc(m.text || '')}${!m.pending && !mine ? `<button class="ai-copy" data-action="ai-copy" data-id="${m.id}" title="Copy">${icon('copy','xs')}</button>` : ''}</div></div>`;
 }
 
 function localReply(q) {
   const s = getState();
   const text = String(q || '').trim();
   const low = text.toLowerCase();
-  if (/^(hi|hello|salam|assalam|yo)\b/.test(low)) return 'Salam! Main T LINK AI — your offline assistant. Ask me about your chats, security, calls, or mesh mode. 💜';
+  if (/^(hi|hello|salam|assalam|yo)\b/.test(low)) return 'Salam! Main Mhzaly AI — your offline assistant. Ask me about your chats, security, calls, or mesh mode. 💜';
   if (/summar|recap|overview|khulasa/.test(low)) {
     const msgs = s.messages.length, chats = s.chats.length, unread = unreadTotal();
-    return `Here's your T LINK snapshot: ${chats} conversations, ${msgs} messages, ${unread} unread. ${s.statuses.length} active statuses and ${s.calls.length} calls are stored in your encrypted local vault.`;
+    return `Here's your Mhzaly snapshot: ${chats} conversations, ${msgs} messages, ${unread} unread. ${s.statuses.length} active statuses and ${s.calls.length} calls are stored in your encrypted local vault.`;
   }
-  if (/offline|mesh|hotspot|lan|relay/.test(low)) return 'T LINK has 3 layers: 1) Global WebSocket relay when online, 2) local hotspot/LAN mesh when no internet is reachable, 3) a store-and-forward outbox with 24h TTL and dedupe when nothing is available. Messages move up a layer automatically when connectivity returns.';
-  if (/secur|encrypt|pin|password|privacy|hack/.test(low)) return 'Your vault uses AES-256-GCM encryption with a PBKDF2-SHA256 key (150k iterations). A 6-digit app PIN adds a second layer and auto-locks after 5 minutes. T LINK assigns a random 10-digit ID — it never asks for your real phone number or email.';
-  if (/number|id|identity|phone/.test(low)) return 'Your identity is the 10-digit T LINK ID generated on this device. It is not your phone number and cannot be changed. Share it only with people you want to chat with.';
+  if (/offline|mesh|hotspot|lan|relay/.test(low)) return 'Mhzaly has 3 layers: 1) Global WebSocket relay when online, 2) local hotspot/LAN mesh when no internet is reachable, 3) a store-and-forward outbox with 24h TTL and dedupe when nothing is available. Messages move up a layer automatically when connectivity returns.';
+  if (/secur|encrypt|pin|password|privacy|hack/.test(low)) return 'Your vault uses AES-256-GCM encryption with a PBKDF2-SHA256 key (150k iterations). A 6-digit app PIN adds a second layer and auto-locks after 5 minutes. Mhzaly assigns a random 10-digit ID — it never asks for your real phone number or email.';
+  if (/number|id|identity|phone/.test(low)) return 'Your identity is the 10-digit Mhzaly ID generated on this device. It is not your phone number and cannot be changed. Share it only with people you want to chat with.';
   if (/call|voice|video|ptt|walkie/.test(low)) return 'Calls have 3 tiers: global WebRTC audio/video with adaptive Opus; local hotspot P2P with push-to-talk; and offline voice-note fallback that enters the outbox and syncs later.';
   if (/reply|draft|write|compose/.test(low)) return 'Try: "Bhai, message mil gaya — main 10 minute me reply karta hoon." Short, clear and warm. Want it more formal or more casual?';
   if (/status|story|update/.test(low)) return 'Status updates expire after 24 hours. You can post text or photos, and your own viewer list is private to you.';
-  if (/who are you|what are you|model/.test(low)) return 'I am T LINK AI, a free offline assistant running through a local engine. Inside the code the integration is called the local Ollama adapter, but the product name is always T LINK AI.';
+  if (/who are you|what are you|model/.test(low)) return 'I am Mhzaly AI, a free offline assistant running through a local engine. Inside the code the integration is called the local Ollama adapter, but the product name is always Mhzaly AI.';
   return 'Main yahan hoon 💜. I can summarize your chats, draft a reply, explain the offline mesh, or walk you through security. Ask me in English or Roman Urdu.';
 }
 
@@ -131,7 +131,7 @@ export async function handleAiAction(action, el) {
     return true;
   }
   if (action === 'ai-clear') {
-    const ok = await confirmDialog({ title:'Clear conversation?', message:'This removes your local T LINK AI chat history.', confirmLabel:'Clear' });
+    const ok = await confirmDialog({ title:'Clear conversation?', message:'This removes your local Mhzaly AI chat history.', confirmLabel:'Clear' });
     if (ok) { act.clearAiMessages(); toast('AI conversation cleared','success'); }
     return true;
   }

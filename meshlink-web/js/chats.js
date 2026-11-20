@@ -65,7 +65,7 @@ export function renderSidebar(state) {
   return `
   <aside class="sidebar">
     <div class="side-head">
-      <div class="side-title"><small>T LINK</small>Chats</div>
+      <div class="side-title"><small>Mhzaly</small>Chats</div>
       <div class="side-actions">
         <button class="icon-btn" data-action="new-chat" title="New chat">${icon('plus')}</button>
         <button class="icon-btn" data-action="new-group" title="New group">${icon('users')}</button>
@@ -160,7 +160,7 @@ export function renderChatMain(state) {
 }
 
 function emptyChat() {
-  return `<div class="chat-empty"><div class="glow"></div><div class="chat-empty-art">${icon('message')}</div><h2>Messages that move with you</h2><p>Pick a conversation to start chatting. If the internet drops, T LINK switches to the nearby mesh and keeps messages moving.</p><div class="tiny">${icon('shield')} Offline queue · 3-tier calling · mesh relay</div></div>`;
+  return `<div class="chat-empty"><div class="glow"></div><div class="chat-empty-art">${icon('message')}</div><h2>Messages that move with you</h2><p>Pick a conversation to start chatting. If the internet drops, Mhzaly switches to the nearby mesh and keeps messages moving.</p><div class="tiny">${icon('shield')} Offline queue · 3-tier calling · mesh relay</div></div>`;
 }
 
 function messageHTML(state, chat, m, grouped, q, all) {
@@ -479,7 +479,7 @@ export async function startVoiceRecording() {
   let stream=null;
   try { if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('unsupported'); stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
   catch {
-    if (await confirmDialog({title:'Microphone unavailable',message:'T LINK cannot access your mic. Add a short demo voice note using the same offline delivery pipeline?',confirmLabel:'Use demo clip'})) {
+    if (await confirmDialog({title:'Microphone unavailable',message:'Mhzaly cannot access your mic. Add a short demo voice note using the same offline delivery pipeline?',confirmLabel:'Use demo clip'})) {
       act.sendMessage({chatId:c.id,kind:'voice',media:{duration:6,waveform:Array.from({length:26},(_,i)=>8+Math.abs(Math.sin(i))*16),src:''}});
       toast(netState().online?'Demo voice note sent':'Demo voice note queued offline','success');
     }
